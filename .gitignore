@@ -1,0 +1,64 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyd
+*.pyo
+*.pyw
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+*.whl
+
+# Entorno virtual
+venv/
+env/
+.venv/
+ENV/
+
+# Django
+*.sqlite3
+*.log
+local_settings.py
+db.sqlite3
+media/
+staticfiles/
+backend/staticfiles/
+backend/media/
+
+# Archivos de configuración sensibles
+.env
+.env.*
+!.env.example
+secrets.py
+
+# Fichadas / datos locales
+backend/fichadas/
+*.txt.bak
+
+# IDE / editores
+.vscode/
+.idea/
+*.suo
+*.user
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Claude Code
+.claude/
+
+# Migraciones (opcional — se suelen incluir, pero si preferís excluirlas descomentá)
+# */migrations/
+
+# Coverage / testing
+.coverage
+htmlcov/
+.pytest_cache/
+.tox/
+
+# Jupyter
+.ipynb_checkpoints/
