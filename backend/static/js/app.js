@@ -61,12 +61,16 @@ function navTo(page) {
     relojes: 'Gestión de Relojes',
     logs: 'Logs de Lectura',
     ciclos: 'Ciclos de Lectura',
+    registros: 'Registros en Reloj',
+    fichadas: 'Fichadas guardadas',
   }[page];
 
   if (page === 'dashboard')  renderDashboard();
   if (page === 'relojes')    renderRelojesTable();
   if (page === 'logs')       renderLogsPage();
   if (page === 'ciclos')     renderCiclos();
+  if (page === 'registros')  renderRegistros();
+  if (page === 'fichadas')   renderFichadas();
 }
 
 document.querySelectorAll('nav a[data-page]').forEach(a =>
@@ -172,10 +176,7 @@ async function renderDashboard() {
           }
         </div>
         <div class="rc-ip">${r.ip}:${r.puerto}</div>
-        <div class="rc-info">
-          idadm: ${r.idadm}
-          ${r.es_lector ? '<span class="tag-lector">Solo lector</span>' : ''}
-        </div>
+        <div class="rc-info">idadm: ${r.idadm}</div>
         ${r.ultimo_ciclo_display
           ? `<div class="rc-ultimo">Ultimo: ${r.ultimo_ciclo_display}</div>`
           : '<div class="rc-ultimo">Sin lectura</div>'
@@ -189,14 +190,24 @@ async function renderDashboard() {
             ${!r.activo || estado.en_progreso ? 'disabled' : ''}>
             ▶ Leer
           </button>
-          <button class="btn btn-ghost btn-sm" onclick="reiniciarReloj(${r.id}, '${r.nombre}')"
+          <button class="btn btn-ghost btn-sm" onclick="pingReloj(${r.id}, '${r.nombre}')"
             ${!r.activo ? 'disabled' : ''}>
-            ↺ Reiniciar
+            ⬡ Ping
           </button>
         </div>
       </div>
     `;
   }).join('');
+}
+
+// ─── Ping reloj ───────────────────────────────────────────────────────────────
+async function pingReloj(id, nombre) {
+  try {
+    await api('POST', `/relojes/${id}/ping/`);
+    toast(`${nombre}: conectado`, 'ok');
+  } catch (e) {
+    toast(e.data?.error || `${nombre}: sin respuesta`, 'error');
+  }
 }
 
 // ─── Reiniciar reloj ─────────────────────────────────────────────────────────
@@ -243,7 +254,7 @@ async function renderRelojesTable() {
 
   const tbody = document.getElementById('relojes-tbody');
   if (!lista.length) {
-    tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:30px">No hay relojes. Agregue uno con el botón +</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:30px">No hay relojes. Agregue uno con el botón +</td></tr>`;
     return;
   }
   tbody.innerHTML = lista.map(r => `
@@ -253,7 +264,6 @@ async function renderRelojesTable() {
       <td class="mono">${r.puerto}</td>
       <td class="mono">${r.password}</td>
       <td class="mono">${r.idadm}</td>
-      <td>${r.es_lector ? '<span class="tag-lector">Si</span>' : '—'}</td>
       <td>${r.activo
         ? '<span class="chip-on">● Activo</span>'
         : '<span class="chip-off">● Inactivo</span>'}</td>
@@ -261,6 +271,9 @@ async function renderRelojesTable() {
       <td>
         <div class="actions-cell">
           <button class="btn btn-ghost btn-sm" onclick="abrirModalReloj(${r.id})">Editar</button>
+          <button class="btn btn-ghost btn-sm" onclick="verRegistrosReloj(${r.id})">Registros</button>
+          <button class="btn btn-ghost btn-sm" onclick="pingReloj(${r.id}, '${r.nombre}')"
+            ${!r.activo ? 'disabled' : ''}>Ping</button>
           <button class="btn btn-ghost btn-sm" onclick="reiniciarReloj(${r.id}, '${r.nombre}')"
             ${!r.activo ? 'disabled' : ''}>Reiniciar</button>
           <button class="btn btn-danger btn-sm" onclick="eliminarReloj(${r.id}, '${r.nombre}')">Borrar</button>
@@ -285,7 +298,6 @@ function abrirModalReloj(id) {
   document.getElementById('f-puerto').value = '4370';
   document.getElementById('f-password').value = '0';
   document.getElementById('f-idadm').value = '0';
-  document.getElementById('f-eslector').checked = false;
   document.getElementById('f-activo').checked = true;
 
   if (id) {
@@ -295,8 +307,7 @@ function abrirModalReloj(id) {
       document.getElementById('f-puerto').value   = r.puerto;
       document.getElementById('f-password').value = r.password;
       document.getElementById('f-idadm').value    = r.idadm;
-      document.getElementById('f-eslector').checked = r.es_lector;
-      document.getElementById('f-activo').checked   = r.activo;
+      document.getElementById('f-activo').checked = r.activo;
     });
   }
 
@@ -309,13 +320,12 @@ function cerrarModalReloj() {
 
 async function guardarReloj() {
   const body = {
-    nombre:    document.getElementById('f-nombre').value.trim(),
-    ip:        document.getElementById('f-ip').value.trim(),
-    puerto:    parseInt(document.getElementById('f-puerto').value),
-    password:  parseInt(document.getElementById('f-password').value),
-    idadm:     parseInt(document.getElementById('f-idadm').value),
-    es_lector: document.getElementById('f-eslector').checked,
-    activo:    document.getElementById('f-activo').checked,
+    nombre:   document.getElementById('f-nombre').value.trim(),
+    ip:       document.getElementById('f-ip').value.trim(),
+    puerto:   parseInt(document.getElementById('f-puerto').value),
+    password: parseInt(document.getElementById('f-password').value),
+    idadm:    parseInt(document.getElementById('f-idadm').value),
+    activo:   document.getElementById('f-activo').checked,
   };
 
   if (!body.nombre || !body.ip) {
@@ -325,7 +335,7 @@ async function guardarReloj() {
 
   try {
     if (editId) {
-      await api('PUT', `/relojes/${editId}/`, body);
+      await api('PATCH', `/relojes/${editId}/`, body);
       toast('Reloj actualizado', 'ok');
     } else {
       await api('POST', '/relojes/', body);
@@ -475,6 +485,174 @@ async function renderCiclos() {
       <td>${c.relojes_nombres?.join(', ') || '—'}</td>
     </tr>
   `).join('');
+}
+
+// ─── Registros en reloj ───────────────────────────────────────────────────────
+let _registrosPreselect = null;
+
+function verRegistrosReloj(id) {
+  _registrosPreselect = id;
+  navTo('registros');
+}
+
+async function renderRegistros() {
+  const data = await api('GET', '/relojes/').catch(() => ({ results: [] }));
+  const lista = (data.results || data).filter(r => r.activo);
+  const sel = document.getElementById('reg-reloj-select');
+  sel.innerHTML = '<option value="">— Seleccione un reloj —</option>' +
+    lista.map(r => `<option value="${r.id}">${r.nombre} (${r.ip})</option>`).join('');
+
+  if (_registrosPreselect) {
+    sel.value = String(_registrosPreselect);
+    _registrosPreselect = null;
+    await cargarRegistros();
+  }
+}
+
+async function cargarRegistros() {
+  const sel = document.getElementById('reg-reloj-select');
+  const id = sel.value;
+  if (!id) { toast('Seleccione un reloj', 'error'); return; }
+
+  const nombre = sel.options[sel.selectedIndex].text;
+  const btn = document.getElementById('reg-cargar-btn');
+  const statusEl = document.getElementById('reg-status');
+  const tbody = document.getElementById('reg-tbody');
+
+  btn.disabled = true;
+  btn.textContent = 'Cargando...';
+  statusEl.textContent = `Conectando a ${nombre}...`;
+  tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:30px">Leyendo registros del reloj...</td></tr>`;
+
+  try {
+    const data = await api('GET', `/relojes/${id}/registros/`);
+    statusEl.textContent = `${data.total} registros`;
+
+    if (!data.registros.length) {
+      tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:30px">El reloj no tiene registros almacenados.</td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = data.registros.map(r => `
+      <tr>
+        <td class="mono">${r.user_id}</td>
+        <td>${r.nombre || '—'}</td>
+        <td class="mono">${r.timestamp}</td>
+        <td>${r.tipo}</td>
+      </tr>
+    `).join('');
+  } catch (e) {
+    statusEl.textContent = '';
+    toast(e.data?.error || `Error al leer ${nombre}`, 'error');
+    tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:30px">No se pudo conectar al reloj.</td></tr>`;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Cargar';
+  }
+}
+
+// ─── Fichadas guardadas ───────────────────────────────────────────────────────
+let _fichadasData    = [];
+let _fichadasSortCol = 'hora';
+let _fichadasSortDir = -1;  // -1 desc, 1 asc
+
+async function renderFichadas() {
+  await buscarFichadas();
+}
+
+async function buscarFichadas() {
+  const reloj  = document.getElementById('fich-reloj').value;
+  const legajo = document.getElementById('fich-legajo').value.trim();
+  const desde  = document.getElementById('fich-desde').value;
+  const hasta  = document.getElementById('fich-hasta').value;
+  const tbody    = document.getElementById('fich-tbody');
+  const statusEl = document.getElementById('fich-status');
+
+  tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:30px">Buscando...</td></tr>`;
+  statusEl.textContent = '';
+
+  const params = new URLSearchParams();
+  if (reloj)  params.set('reloj', reloj);
+  if (legajo) params.set('legajo', legajo);
+  if (desde)  params.set('fecha_desde', desde);
+  if (hasta)  params.set('fecha_hasta', hasta);
+
+  try {
+    const data = await api('GET', `/fichadas/?${params}`);
+
+    // Actualizar dropdown de relojes conservando selección
+    const selReloj = document.getElementById('fich-reloj');
+    const currentReloj = selReloj.value;
+    selReloj.innerHTML = '<option value="">— Todos —</option>' +
+      (data.relojes_disponibles || []).map(r => `<option value="${r}">${r}</option>`).join('');
+    selReloj.value = currentReloj;
+
+    statusEl.textContent = data.total > data.mostrados
+      ? `Mostrando ${data.mostrados} de ${data.total} — use filtros para acotar`
+      : `${data.total} registros`;
+
+    _fichadasData = data.registros;
+    _renderFichadasTable();
+  } catch (e) {
+    statusEl.textContent = '';
+    toast(e.data?.error || 'Error al cargar fichadas', 'error');
+    tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:30px">Error al cargar.</td></tr>`;
+  }
+}
+
+function _renderFichadasTable() {
+  const tbody = document.getElementById('fich-tbody');
+
+  if (!_fichadasData.length) {
+    tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:30px">Sin registros para los filtros seleccionados.</td></tr>`;
+    return;
+  }
+
+  const sorted = [..._fichadasData].sort((a, b) => {
+    const va = a[_fichadasSortCol] || '';
+    const vb = b[_fichadasSortCol] || '';
+    return va < vb ? -_fichadasSortDir : va > vb ? _fichadasSortDir : 0;
+  });
+
+  tbody.innerHTML = sorted.map(r => `
+    <tr>
+      <td class="mono">${r.legajo}</td>
+      <td>${r.nombre || '—'}</td>
+      <td class="mono">${r.hora}</td>
+      <td>${r.tipo}</td>
+      <td>${r.reloj}</td>
+    </tr>
+  `).join('');
+
+  ['legajo', 'nombre', 'hora'].forEach(col => {
+    const el = document.getElementById(`sort-${col}`);
+    if (!el) return;
+    if (col === _fichadasSortCol) {
+      el.textContent = _fichadasSortDir === 1 ? '▲' : '▼';
+      el.style.color = 'var(--primary)';
+    } else {
+      el.textContent = '⇅';
+      el.style.color = 'var(--muted)';
+    }
+  });
+}
+
+function sortFichadas(col) {
+  if (_fichadasSortCol === col) {
+    _fichadasSortDir *= -1;
+  } else {
+    _fichadasSortCol = col;
+    _fichadasSortDir = col === 'hora' ? -1 : 1;
+  }
+  _renderFichadasTable();
+}
+
+function limpiarFiltrosFichadas() {
+  document.getElementById('fich-reloj').value  = '';
+  document.getElementById('fich-legajo').value = '';
+  document.getElementById('fich-desde').value  = '';
+  document.getElementById('fich-hasta').value  = '';
+  buscarFichadas();
 }
 
 // ─── Init ─────────────────────────────────────────────────────────────────────

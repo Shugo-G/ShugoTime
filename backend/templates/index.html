@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ShugoClock</title>
+  <title>ShugoTime</title>
   {% load static %}
   <link rel="stylesheet" href="{% static 'css/app.css' %}?v=2">
 </head>
@@ -12,7 +12,7 @@
 <!-- ── Sidebar ── -->
 <aside id="sidebar">
   <div class="sidebar-logo">
-    <h1>ShugoClock</h1>
+    <h1>ShugoTime</h1>
     <p>Gestión de relojes biométricos</p>
   </div>
   <nav>
@@ -27,6 +27,12 @@
     </a>
     <a data-page="ciclos">
       <span class="icon">⟳</span> Ciclos
+    </a>
+    <a data-page="registros">
+      <span class="icon">⊡</span> Registros
+    </a>
+    <a data-page="fichadas">
+      <span class="icon">▤</span> Fichadas
     </a>
   </nav>
   <div class="sidebar-footer">
@@ -96,14 +102,13 @@
               <th>Puerto</th>
               <th>Password</th>
               <th>idadm</th>
-              <th>Solo lector</th>
               <th>Estado</th>
               <th>Ultimo estado</th>
               <th>Acciones</th>
             </tr>
           </thead>
           <tbody id="relojes-tbody">
-            <tr><td colspan="9" style="text-align:center;color:var(--muted);padding:30px">Cargando...</td></tr>
+            <tr><td colspan="8" style="text-align:center;color:var(--muted);padding:30px">Cargando...</td></tr>
           </tbody>
         </table>
       </div>
@@ -190,6 +195,90 @@
       </div>
     </div>
 
+    <!-- ── Registros ── -->
+    <div id="page-registros" class="page">
+      <div class="section-header">
+        <div class="section-title" style="margin:0">Registros en reloj</div>
+        <div style="display:flex;gap:10px;align-items:center">
+          <select id="reg-reloj-select"
+            style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:var(--radius);padding:5px 12px;font-size:13px">
+            <option value="">— Seleccione un reloj —</option>
+          </select>
+          <button id="reg-cargar-btn" class="btn btn-primary" onclick="cargarRegistros()">Cargar</button>
+          <span id="reg-status" style="font-size:13px;color:var(--text-dim)"></span>
+        </div>
+      </div>
+
+      <div class="table-wrap" style="margin-top:16px">
+        <table>
+          <thead>
+            <tr>
+              <th>ID Personal</th>
+              <th>Nombre</th>
+              <th>Fecha/Hora</th>
+              <th>Tipo</th>
+            </tr>
+          </thead>
+          <tbody id="reg-tbody">
+            <tr><td colspan="4" style="text-align:center;color:var(--muted);padding:30px">Seleccione un reloj y presione Cargar.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ── Fichadas guardadas ── -->
+    <div id="page-fichadas" class="page">
+      <div class="section-header">
+        <div class="section-title" style="margin:0">Fichadas guardadas</div>
+        <span id="fich-status" style="font-size:13px;color:var(--text-dim)"></span>
+      </div>
+
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:12px 0 16px">
+        <div style="display:flex;gap:6px;align-items:center">
+          <label style="font-size:12px;color:var(--text-dim)">Reloj:</label>
+          <select id="fich-reloj" onchange="buscarFichadas()"
+            style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:var(--radius);padding:5px 10px;font-size:13px">
+            <option value="">— Todos —</option>
+          </select>
+        </div>
+        <div style="display:flex;gap:6px;align-items:center">
+          <label style="font-size:12px;color:var(--text-dim)">Legajo:</label>
+          <input type="text" id="fich-legajo" placeholder="Ej: 1 ó 137"
+            onkeydown="if(event.key==='Enter')buscarFichadas()"
+            style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:var(--radius);padding:5px 10px;font-size:13px;width:120px">
+        </div>
+        <div style="display:flex;gap:6px;align-items:center">
+          <label style="font-size:12px;color:var(--text-dim)">Desde:</label>
+          <input type="date" id="fich-desde" onchange="buscarFichadas()"
+            style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:var(--radius);padding:5px 10px;font-size:13px">
+        </div>
+        <div style="display:flex;gap:6px;align-items:center">
+          <label style="font-size:12px;color:var(--text-dim)">Hasta:</label>
+          <input type="date" id="fich-hasta" onchange="buscarFichadas()"
+            style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:var(--radius);padding:5px 10px;font-size:13px">
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="buscarFichadas()">Buscar</button>
+        <button class="btn btn-ghost btn-sm" onclick="limpiarFiltrosFichadas()">Limpiar</button>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th onclick="sortFichadas('legajo')" style="cursor:pointer;user-select:none">Legajo <span id="sort-legajo" style="color:var(--muted)">⇅</span></th>
+              <th onclick="sortFichadas('nombre')" style="cursor:pointer;user-select:none">Nombre <span id="sort-nombre" style="color:var(--muted)">⇅</span></th>
+              <th onclick="sortFichadas('hora')"   style="cursor:pointer;user-select:none">Fecha/Hora <span id="sort-hora" style="color:var(--primary)">▼</span></th>
+              <th>Tipo</th>
+              <th>Reloj</th>
+            </tr>
+          </thead>
+          <tbody id="fich-tbody">
+            <tr><td colspan="5" style="text-align:center;color:var(--muted);padding:30px">Cargando...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
   </div><!-- /content -->
 </div><!-- /main -->
 
@@ -224,13 +313,6 @@
           <label>ID Administración</label>
           <input type="number" id="f-idadm" value="0">
         </div>
-      </div>
-      <div class="toggle-row">
-        <span class="toggle-label">Solo lector (no borrar registros)</span>
-        <label class="toggle">
-          <input type="checkbox" id="f-eslector">
-          <span class="toggle-slider"></span>
-        </label>
       </div>
       <div class="toggle-row">
         <span class="toggle-label">Activo</span>

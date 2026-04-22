@@ -120,6 +120,68 @@ def _insertar_fichadas(attendances, idadm, ip_reloj, ciclo, nombre):
         conn.close()
 
 
+def _filtrar_nuevas_fichadas(attendances, ip_reloj, ciclo, nombre):
+    """
+    Devuelve solo las fichadas genuinamente nuevas:
+    1. Elimina dobles fichadas: registros consecutivos del mismo usuario en menos de 60 s (conserva el primero).
+    2. Elimina registros ya presentes en la DB para esta IP.
+    """
+    if not attendances:
+        return []
+
+    # Paso 1: eliminar dobles fichadas por usuario
+    ordenadas = sorted(attendances, key=lambda a: (str(a.user_id), a.timestamp))
+    sin_dobles = []
+    ultima_ts = {}
+    for a in ordenadas:
+        uid = str(a.user_id)
+        prev = ultima_ts.get(uid)
+        if prev is not None and (a.timestamp - prev).total_seconds() < 60:
+            continue
+        ultima_ts[uid] = a.timestamp
+        sin_dobles.append(a)
+
+    omitidas_dobles = len(attendances) - len(sin_dobles)
+    if omitidas_dobles:
+        _log(ciclo, nombre, "Dedup",
+             f"Omitidas {omitidas_dobles} dobles fichadas (mismo usuario, <1 min)")
+
+    if not sin_dobles:
+        return []
+
+    # Paso 2: filtrar contra registros ya existentes en DB
+    min_ts = min(a.timestamp for a in sin_dobles)
+    max_ts = max(a.timestamp for a in sin_dobles)
+
+    db_conf = settings.FICHADAS_DB
+    pg_conn = psycopg2.connect(
+        host=db_conf["host"], port=db_conf["port"], dbname=db_conf["dbname"],
+        user=db_conf["user"], password=db_conf["password"],
+        options=db_conf.get("options", ""),
+    )
+    try:
+        with pg_conn.cursor() as cur:
+            cur.execute(
+                "SELECT idper, hora FROM public.ingresopersonal "
+                "WHERE ip = %s AND hora BETWEEN %s AND %s",
+                (ip_reloj, min_ts, max_ts),
+            )
+            existentes = {(row[0].strip(), row[1]) for row in cur.fetchall()}
+    finally:
+        pg_conn.close()
+
+    nuevas = [
+        a for a in sin_dobles
+        if (str(a.user_id).zfill(COL_IDPER), a.timestamp) not in existentes
+    ]
+    omitidas_db = len(sin_dobles) - len(nuevas)
+    if omitidas_db:
+        _log(ciclo, nombre, "Dedup",
+             f"Omitidas {omitidas_db} fichadas ya presentes en DB")
+
+    return nuevas
+
+
 def _procesar_reloj(reloj_obj, ciclo):
     """
     Conecta al reloj, lee las fichadas, las persiste y limpia el reloj.
@@ -163,22 +225,15 @@ def _procesar_reloj(reloj_obj, ciclo):
             _log(ciclo, nombre, "Inicializando",
                  "Equipo sin registraciones", advertencia=True)
         else:
-            filepath = _guardar_fichadas(attendances, idadm, ip, nombre, usuarios)
-            _log(ciclo, nombre, "Guardando", f"Fichadas guardadas en: {filepath}")
-
-            _insertar_fichadas(attendances, idadm, ip, ciclo, nombre)
-            fichadas_count = cantidad
-
-            if not es_lector:
-                _log(ciclo, nombre, "Limpiando", "Borrando registros del reloj...")
-                conn.disable_device()
-                conn.clear_attendance()
-                conn.enable_device()
-                _log(ciclo, nombre, "Limpiando", "Registros borrados con exito")
+            nuevas = _filtrar_nuevas_fichadas(attendances, ip, ciclo, nombre)
+            if nuevas:
+                filepath = _guardar_fichadas(nuevas, idadm, ip, nombre, usuarios)
+                _log(ciclo, nombre, "Guardando", f"Fichadas guardadas en: {filepath}")
+                _insertar_fichadas(nuevas, idadm, ip, ciclo, nombre)
+                fichadas_count = len(nuevas)
             else:
-                _log(ciclo, nombre, "Limpiando",
-                     "Reloj configurado como solo-lector, no se borran registros",
-                     advertencia=True)
+                _log(ciclo, nombre, "Guardando",
+                     f"Sin fichadas nuevas ({cantidad} registros en reloj, todos ya en DB)")
 
     except Exception as e:
         error = str(e)
@@ -246,6 +301,64 @@ def hay_ciclo_en_progreso():
     global _hilo_activo
     with _lock:
         return _hilo_activo is not None and _hilo_activo.is_alive()
+
+
+def leer_registros_reloj(reloj_obj):
+    """
+    Lee los registros almacenados en el reloj sin modificarlo.
+    Retorna (lista_de_dicts, None) o (None, mensaje_error).
+    """
+    PUNCH_LABELS = {1: "Entrada", 2: "Salida", 3: "Almuerzo", 4: "Regreso"}
+    conn = None
+    try:
+        zk = ZK(reloj_obj.ip, port=reloj_obj.puerto, timeout=5,
+                password=reloj_obj.password, force_udp=False, ommit_ping=False)
+        conn = zk.connect()
+        attendances = conn.get_attendance()
+        try:
+            users = conn.get_users()
+            usuarios = {u.user_id: u.name for u in users}
+        except Exception:
+            usuarios = {}
+        registros = [
+            {
+                "user_id": str(a.user_id).zfill(COL_IDPER),
+                "nombre": usuarios.get(a.user_id, ""),
+                "timestamp": a.timestamp.strftime("%Y-%m-%d %H:%M:%S"),
+                "tipo": PUNCH_LABELS.get(punch_to_idtctrlper(a.punch), str(a.punch)),
+            }
+            for a in sorted(attendances, key=lambda x: x.timestamp, reverse=True)
+        ]
+        return registros, None
+    except Exception as e:
+        return None, str(e)
+    finally:
+        if conn:
+            try:
+                conn.disconnect()
+            except Exception:
+                pass
+
+
+def ping_reloj(reloj_obj):
+    """
+    Verifica conectividad con el reloj sin realizar ningún cambio.
+    Retorna (True, None) si responde, o (False, mensaje_error) si falla.
+    """
+    conn = None
+    try:
+        zk = ZK(reloj_obj.ip, port=reloj_obj.puerto, timeout=5,
+                password=reloj_obj.password, force_udp=False, ommit_ping=False)
+        conn = zk.connect()
+        return True, None
+    except Exception as e:
+        return False, str(e)
+    finally:
+        if conn:
+            try:
+                conn.disconnect()
+            except Exception:
+                pass
 
 
 def reiniciar_reloj(reloj_obj):

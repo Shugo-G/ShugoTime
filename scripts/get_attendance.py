@@ -12,7 +12,7 @@ sys.path.append(ROOT_DIR)
 from zk import ZK, const
 
 conn = None
-zk = ZK('192.168.0.22', port=4370, timeout=5, password=1884, force_udp=False, ommit_ping=False)
+zk = ZK('192.168.0.23', port=4370, timeout=5, password=0, force_udp=False, ommit_ping=False)
 try:
     conn = zk.connect()
     #conn.enable_device()

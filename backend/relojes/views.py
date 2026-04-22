@@ -1,3 +1,6 @@
+import os
+
+from django.conf import settings
 from django.utils import timezone
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
@@ -25,6 +28,34 @@ class RelojViewSet(viewsets.ModelViewSet):
         if error:
             return Response({"error": error}, status=status.HTTP_409_CONFLICT)
         return Response({"ciclo_id": ciclo_id}, status=status.HTTP_202_ACCEPTED)
+
+    @action(detail=True, methods=["get"], url_path="registros")
+    def registros(self, request, pk=None):
+        """Lee los registros almacenados en el reloj sin modificarlo."""
+        reloj = self.get_object()
+        if not reloj.activo:
+            return Response(
+                {"error": "El reloj está inactivo"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        records, error = zk_reader.leer_registros_reloj(reloj)
+        if error:
+            return Response({"error": error}, status=status.HTTP_502_BAD_GATEWAY)
+        return Response({"registros": records, "total": len(records)})
+
+    @action(detail=True, methods=["post"], url_path="ping")
+    def ping(self, request, pk=None):
+        """Verifica conectividad con el reloj sin realizar cambios."""
+        reloj = self.get_object()
+        if not reloj.activo:
+            return Response(
+                {"error": "El reloj está inactivo"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        success, error = zk_reader.ping_reloj(reloj)
+        if not success:
+            return Response({"error": error}, status=status.HTTP_502_BAD_GATEWAY)
+        return Response({"ok": True}, status=status.HTTP_200_OK)
 
     @action(detail=True, methods=["post"], url_path="reiniciar")
     def reiniciar(self, request, pk=None):
@@ -87,6 +118,85 @@ class LogEntryViewSet(viewsets.ReadOnlyModelViewSet):
             qs = qs.filter(advertencia=True)
 
         return qs
+
+
+class FichadasView(viewsets.ViewSet):
+    """Lee y filtra los registros guardados en los archivos .txt de fichadas."""
+
+    _TIPO_MAP = {'1': 'Entrada', '2': 'Salida', '3': 'Almuerzo', '4': 'Regreso'}
+    _LIMITE = 500
+
+    def list(self, request):
+        fichadas_dir = settings.FICHADAS_DIR
+        reloj_filtro  = request.query_params.get('reloj', '').strip()
+        legajo_raw    = request.query_params.get('legajo', '').strip()
+        fecha_desde   = request.query_params.get('fecha_desde', '').strip()
+        fecha_hasta   = request.query_params.get('fecha_hasta', '').strip()
+
+        legajo_filtro = ''
+        if legajo_raw:
+            try:
+                legajo_filtro = str(int(legajo_raw)).zfill(11)
+            except ValueError:
+                legajo_filtro = legajo_raw.zfill(11)
+
+        try:
+            archivos = sorted(f for f in os.listdir(fichadas_dir) if f.endswith('.txt'))
+        except OSError:
+            archivos = []
+
+        relojes_disponibles = [a[:-4] for a in archivos]
+        registros = []
+        seen = set()
+
+        for archivo in archivos:
+            reloj_nombre = archivo[:-4]
+            if reloj_filtro and reloj_nombre != reloj_filtro:
+                continue
+            try:
+                with open(os.path.join(fichadas_dir, archivo), encoding='utf-8') as f:
+                    for line in f:
+                        line = line.rstrip('\n')
+                        if not line or line.startswith('#') or len(line) < 35:
+                            continue
+                        try:
+                            idper      = line[0:11].strip()
+                            hora       = line[12:35].strip()
+                            idtctrlper = line[43:55].strip() if len(line) > 43 else ''
+                            nombre     = line[81:].strip()   if len(line) > 81 else ''
+
+                            if legajo_filtro and idper != legajo_filtro:
+                                continue
+                            if fecha_desde and hora[:10] < fecha_desde:
+                                continue
+                            if fecha_hasta and hora[:10] > fecha_hasta:
+                                continue
+
+                            key = (idper, hora, reloj_nombre)
+                            if key in seen:
+                                continue
+                            seen.add(key)
+
+                            registros.append({
+                                'legajo': idper,
+                                'nombre': nombre,
+                                'hora':   hora,
+                                'tipo':   self._TIPO_MAP.get(idtctrlper, idtctrlper),
+                                'reloj':  reloj_nombre,
+                            })
+                        except (IndexError, ValueError):
+                            continue
+            except OSError:
+                continue
+
+        registros.sort(key=lambda r: r['hora'], reverse=True)
+        total = len(registros)
+        return Response({
+            'total':               total,
+            'mostrados':           min(total, self._LIMITE),
+            'relojes_disponibles': relojes_disponibles,
+            'registros':           registros[:self._LIMITE],
+        })
 
 
 class EstadoView(viewsets.ViewSet):
