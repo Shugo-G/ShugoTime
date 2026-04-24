@@ -1,5 +1,8 @@
+from datetime import datetime as dt
+
 from rest_framework import serializers
-from .models import Reloj, CicloLectura, LogEntry
+
+from .models import Reloj, CicloLectura, LogEntry, TareaProgramada
 
 
 class RelojSerializer(serializers.ModelSerializer):
@@ -94,3 +97,42 @@ class CicloLecturaSerializer(serializers.ModelSerializer):
             from django.utils import timezone
             return timezone.localtime(obj.fin).strftime("%d/%m/%Y %H:%M:%S")
         return None
+
+
+class TareaProgramadaSerializer(serializers.ModelSerializer):
+    relojes_nombres = serializers.SerializerMethodField()
+    proxima_ejecucion_display = serializers.SerializerMethodField()
+
+    class Meta:
+        model = TareaProgramada
+        fields = [
+            "id",
+            "nombre",
+            "expresion_cron",
+            "relojes",
+            "relojes_nombres",
+            "activo",
+            "proxima_ejecucion_display",
+            "fecha_creacion",
+            "fecha_modificacion",
+        ]
+        read_only_fields = ["fecha_creacion", "fecha_modificacion"]
+
+    def get_relojes_nombres(self, obj):
+        return list(obj.relojes.values_list("nombre", flat=True))
+
+    def get_proxima_ejecucion_display(self, obj):
+        try:
+            from croniter import croniter
+            from django.utils import timezone
+            now = timezone.localtime(timezone.now())
+            cron = croniter(obj.expresion_cron, now)
+            return cron.get_next(dt).strftime("%d/%m/%Y %H:%M:%S")
+        except Exception:
+            return None
+
+    def validate_expresion_cron(self, value):
+        from croniter import croniter
+        if not croniter.is_valid(value):
+            raise serializers.ValidationError("Expresión CRON inválida.")
+        return value

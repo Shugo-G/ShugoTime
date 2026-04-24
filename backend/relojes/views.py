@@ -6,8 +6,8 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
-from .models import Reloj, CicloLectura, LogEntry
-from .serializers import RelojSerializer, CicloLecturaSerializer, LogEntrySerializer
+from .models import Reloj, CicloLectura, LogEntry, TareaProgramada
+from .serializers import RelojSerializer, CicloLecturaSerializer, LogEntrySerializer, TareaProgramadaSerializer
 from . import zk_reader
 
 
@@ -197,6 +197,18 @@ class FichadasView(viewsets.ViewSet):
             'relojes_disponibles': relojes_disponibles,
             'registros':           registros[:self._LIMITE],
         })
+
+
+class TareaProgramadaViewSet(viewsets.ModelViewSet):
+    queryset = TareaProgramada.objects.all().prefetch_related("relojes")
+    serializer_class = TareaProgramadaSerializer
+
+    @action(detail=True, methods=["post"], url_path="toggle")
+    def toggle(self, request, pk=None):
+        tarea = self.get_object()
+        tarea.activo = not tarea.activo
+        tarea.save(update_fields=["activo", "fecha_modificacion"])
+        return Response({"activo": tarea.activo})
 
 
 class EstadoView(viewsets.ViewSet):

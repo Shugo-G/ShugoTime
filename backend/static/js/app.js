@@ -57,20 +57,22 @@ function navTo(page) {
   document.getElementById('page-' + page).classList.add('active');
   document.querySelector(`nav a[data-page="${page}"]`).classList.add('active');
   document.getElementById('topbar-title').textContent = {
-    dashboard: 'Dashboard',
-    relojes: 'Gestión de Relojes',
-    logs: 'Logs de Lectura',
-    ciclos: 'Ciclos de Lectura',
-    registros: 'Registros en Reloj',
-    fichadas: 'Fichadas guardadas',
+    dashboard:     'Dashboard',
+    relojes:       'Gestión de Relojes',
+    logs:          'Logs de Lectura',
+    ciclos:        'Ciclos de Lectura',
+    registros:     'Registros en Reloj',
+    fichadas:      'Fichadas guardadas',
+    programacion:  'Programación',
   }[page];
 
-  if (page === 'dashboard')  renderDashboard();
-  if (page === 'relojes')    renderRelojesTable();
-  if (page === 'logs')       renderLogsPage();
-  if (page === 'ciclos')     renderCiclos();
-  if (page === 'registros')  renderRegistros();
-  if (page === 'fichadas')   renderFichadas();
+  if (page === 'dashboard')     renderDashboard();
+  if (page === 'relojes')       renderRelojesTable();
+  if (page === 'logs')          renderLogsPage();
+  if (page === 'ciclos')        renderCiclos();
+  if (page === 'registros')     renderRegistros();
+  if (page === 'fichadas')      renderFichadas();
+  if (page === 'programacion')  renderProgramacion();
 }
 
 document.querySelectorAll('nav a[data-page]').forEach(a =>
@@ -653,6 +655,146 @@ function limpiarFiltrosFichadas() {
   document.getElementById('fich-desde').value  = '';
   document.getElementById('fich-hasta').value  = '';
   buscarFichadas();
+}
+
+// ─── Programación ─────────────────────────────────────────────────────────────
+let _tareaEditId = null;
+
+async function renderProgramacion() {
+  const data = await api('GET', '/tareas/').catch(() => ({ results: [] }));
+  const lista = data.results || data;
+
+  const countEl = document.getElementById('prog-count');
+  if (countEl) countEl.textContent = lista.length ? lista.length : '';
+
+  const tbody = document.getElementById('prog-tbody');
+  if (!lista.length) {
+    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:30px">No hay tareas programadas. Cree una con "+ Nueva tarea".</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = lista.map(t => {
+    const relojesText = t.relojes_nombres && t.relojes_nombres.length
+      ? t.relojes_nombres.join(', ')
+      : '—';
+    const estadoBadge = t.activo
+      ? '<span class="badge badge-ok">Activa</span>'
+      : '<span class="badge badge-inactivo">Pausada</span>';
+    const dot = t.activo
+      ? '<span style="color:var(--success);font-size:10px">●</span>'
+      : '<span style="color:var(--muted);font-size:10px">●</span>';
+    const toggleBtn = t.activo
+      ? `<button class="btn btn-ghost btn-sm" onclick="toggleTarea(${t.id})" title="Pausar">⏸</button>`
+      : `<button class="btn btn-ghost btn-sm" onclick="toggleTarea(${t.id})" title="Activar">▶</button>`;
+    return `
+      <tr>
+        <td>${dot}</td>
+        <td style="font-weight:600">${t.nombre}</td>
+        <td class="mono" style="color:var(--primary)">${t.expresion_cron}</td>
+        <td>${relojesText}</td>
+        <td class="mono">${t.proxima_ejecucion_display || '—'}</td>
+        <td>${estadoBadge}</td>
+        <td>
+          <div class="actions-cell">
+            ${toggleBtn}
+            <button class="btn btn-ghost btn-sm" onclick="abrirModalTarea(${t.id})">✎ Editar</button>
+            <button class="btn btn-danger btn-sm" onclick="eliminarTarea(${t.id}, '${t.nombre.replace(/'/g, "\\'")}')">✕</button>
+          </div>
+        </td>
+      </tr>
+    `;
+  }).join('');
+}
+
+function abrirModalTarea(id) {
+  _tareaEditId = id || null;
+  document.getElementById('modal-tarea-titulo').textContent = id ? 'Editar tarea' : 'Nueva tarea';
+  document.getElementById('tp-nombre').value = '';
+  document.getElementById('tp-cron').value = '';
+  document.getElementById('tp-activo').checked = true;
+
+  api('GET', '/relojes/').then(data => {
+    const lista = data.results || data;
+    const container = document.getElementById('tp-relojes-list');
+    if (!lista.length) {
+      container.innerHTML = '<span style="color:var(--muted);font-size:12px">No hay relojes registrados</span>';
+    } else {
+      container.innerHTML = lista.map(r => `
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px">
+          <input type="checkbox" class="tp-reloj-cb" value="${r.id}" style="accent-color:var(--primary)">
+          <span>${r.nombre}</span>
+          <span style="color:var(--muted);font-size:11px">${r.ip}</span>
+        </label>
+      `).join('');
+    }
+
+    if (id) {
+      api('GET', `/tareas/${id}/`).then(t => {
+        document.getElementById('tp-nombre').value   = t.nombre;
+        document.getElementById('tp-cron').value     = t.expresion_cron;
+        document.getElementById('tp-activo').checked = t.activo;
+        document.querySelectorAll('.tp-reloj-cb').forEach(cb => {
+          cb.checked = t.relojes.includes(parseInt(cb.value));
+        });
+      });
+    }
+  }).catch(() => {
+    document.getElementById('tp-relojes-list').innerHTML =
+      '<span style="color:var(--muted);font-size:12px">Error al cargar relojes</span>';
+  });
+
+  document.getElementById('modal-tarea').classList.add('open');
+}
+
+function cerrarModalTarea() {
+  document.getElementById('modal-tarea').classList.remove('open');
+}
+
+async function guardarTarea() {
+  const nombre = document.getElementById('tp-nombre').value.trim();
+  const cron   = document.getElementById('tp-cron').value.trim();
+  const activo = document.getElementById('tp-activo').checked;
+  const relojes = Array.from(document.querySelectorAll('.tp-reloj-cb:checked'))
+    .map(cb => parseInt(cb.value));
+
+  if (!nombre) { toast('El nombre es obligatorio', 'error'); return; }
+  if (!cron)   { toast('La expresión CRON es obligatoria', 'error'); return; }
+
+  try {
+    if (_tareaEditId) {
+      await api('PATCH', `/tareas/${_tareaEditId}/`, { nombre, expresion_cron: cron, activo, relojes });
+      toast('Tarea actualizada', 'ok');
+    } else {
+      await api('POST', '/tareas/', { nombre, expresion_cron: cron, activo, relojes });
+      toast('Tarea creada', 'ok');
+    }
+    cerrarModalTarea();
+    renderProgramacion();
+  } catch (e) {
+    const msg = e.data ? JSON.stringify(e.data) : 'Error al guardar';
+    toast(msg, 'error');
+  }
+}
+
+async function toggleTarea(id) {
+  try {
+    const res = await api('POST', `/tareas/${id}/toggle/`);
+    toast(res.activo ? 'Tarea activada' : 'Tarea pausada', 'ok');
+    renderProgramacion();
+  } catch {
+    toast('Error al cambiar estado', 'error');
+  }
+}
+
+async function eliminarTarea(id, nombre) {
+  if (!confirm(`¿Eliminar la tarea "${nombre}"? Esta acción no se puede deshacer.`)) return;
+  try {
+    await api('DELETE', `/tareas/${id}/`);
+    toast(`Tarea "${nombre}" eliminada`, 'ok');
+    renderProgramacion();
+  } catch {
+    toast('Error al eliminar tarea', 'error');
+  }
 }
 
 // ─── Init ─────────────────────────────────────────────────────────────────────

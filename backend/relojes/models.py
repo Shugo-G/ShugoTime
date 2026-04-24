@@ -72,6 +72,23 @@ class CicloLectura(models.Model):
         return None
 
 
+class TareaProgramada(models.Model):
+    nombre = models.CharField(max_length=200, verbose_name="Nombre")
+    expresion_cron = models.CharField(max_length=100, verbose_name="Expresión CRON")
+    relojes = models.ManyToManyField(Reloj, blank=True, verbose_name="Relojes")
+    activo = models.BooleanField(default=True, verbose_name="Activo")
+    fecha_creacion = models.DateTimeField(auto_now_add=True)
+    fecha_modificacion = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Tarea programada"
+        verbose_name_plural = "Tareas programadas"
+        ordering = ["nombre"]
+
+    def __str__(self):
+        return self.nombre
+
+
 class LogEntry(models.Model):
     ciclo = models.ForeignKey(
         CicloLectura, on_delete=models.CASCADE, related_name="logs", verbose_name="Ciclo"

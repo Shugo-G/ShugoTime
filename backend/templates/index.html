@@ -34,6 +34,9 @@
     <a data-page="fichadas">
       <span class="icon">▤</span> Fichadas
     </a>
+    <a data-page="programacion">
+      <span class="icon">⏱</span> Programación
+    </a>
   </nav>
   <div class="sidebar-footer">
     DPOSS (Obras Sanitarias)
@@ -279,6 +282,51 @@
       </div>
     </div>
 
+    <!-- ── Programación ── -->
+    <div id="page-programacion" class="page">
+      <div class="section-header">
+        <div style="display:flex;align-items:center;gap:10px">
+          <div class="section-title" style="margin:0">Programación de Ciclos Automáticos</div>
+          <span id="prog-count" style="font-size:12px;color:var(--muted)"></span>
+        </div>
+        <button class="btn btn-ghost" onclick="abrirModalTarea()">+ Nueva tarea</button>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th style="width:20px"></th>
+              <th>Nombre</th>
+              <th>Expresión CRON</th>
+              <th>Relojes</th>
+              <th>Próxima ejecución</th>
+              <th>Estado</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody id="prog-tbody">
+            <tr><td colspan="7" style="text-align:center;color:var(--muted);padding:30px">Cargando...</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div style="margin-top:24px">
+        <div class="section-title">Ayuda · Formato CRON</div>
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px 20px;font-family:var(--font-mono);font-size:12px;line-height:2;color:var(--text-dim)">
+          <div>┌──────────── minuto &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(0-59)</div>
+          <div>│ ┌────────── hora &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(0-23)</div>
+          <div>│ │ ┌──────── día del mes &nbsp;(1-31)</div>
+          <div>│ │ │ ┌────── mes &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(1-12)</div>
+          <div>│ │ │ │ ┌──── día semana &nbsp;&nbsp;&nbsp;&nbsp;(0-6, 0=dom)</div>
+          <div>│ │ │ │ │</div>
+          <div><span style="color:var(--primary)">*/5 7-19 * * 1-5</span> &nbsp;→&nbsp; cada 5 min, 7am-7pm, lun-vie</div>
+          <div><span style="color:var(--primary)">0 22 * * *</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;→&nbsp; todos los días a las 22:00</div>
+          <div><span style="color:var(--primary)">0 10 * * 6,0</span> &nbsp;&nbsp;&nbsp;→&nbsp; sábados y domingos a las 10:00</div>
+        </div>
+      </div>
+    </div>
+
   </div><!-- /content -->
 </div><!-- /main -->
 
@@ -325,6 +373,46 @@
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="cerrarModalReloj()">Cancelar</button>
       <button class="btn btn-primary" onclick="guardarReloj()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Modal Tarea Programada ── -->
+<div class="overlay" id="modal-tarea">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 id="modal-tarea-titulo">Nueva tarea</h2>
+      <button class="modal-close" onclick="cerrarModalTarea()">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="field">
+        <label>Nombre</label>
+        <input type="text" id="tp-nombre" placeholder="Ej: Lectura nocturna">
+      </div>
+      <div class="field">
+        <label>Expresión CRON</label>
+        <input type="text" id="tp-cron" placeholder="Ej: */5 7-19 * * 1-5"
+          style="font-family:var(--font-mono)">
+        <span style="font-size:11px;color:var(--text-dim)">minuto hora día-mes mes día-semana</span>
+      </div>
+      <div class="field">
+        <label>Relojes <span style="font-weight:400;text-transform:none;letter-spacing:0">(vacío = todos)</span></label>
+        <div id="tp-relojes-list"
+          style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:10px;max-height:130px;overflow-y:auto;display:flex;flex-direction:column;gap:7px">
+          <span style="color:var(--muted);font-size:12px">Cargando...</span>
+        </div>
+      </div>
+      <div class="toggle-row">
+        <span class="toggle-label">Activo</span>
+        <label class="toggle">
+          <input type="checkbox" id="tp-activo" checked>
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="cerrarModalTarea()">Cancelar</button>
+      <button class="btn btn-primary" onclick="guardarTarea()">Guardar</button>
     </div>
   </div>
 </div>
