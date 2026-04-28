@@ -565,6 +565,7 @@ async function renderFichadas() {
 async function buscarFichadas() {
   const reloj  = document.getElementById('fich-reloj').value;
   const legajo = document.getElementById('fich-legajo').value.trim();
+  const nombre = document.getElementById('fich-nombre').value.trim();
   const desde  = document.getElementById('fich-desde').value;
   const hasta  = document.getElementById('fich-hasta').value;
   const tbody    = document.getElementById('fich-tbody');
@@ -576,6 +577,7 @@ async function buscarFichadas() {
   const params = new URLSearchParams();
   if (reloj)  params.set('reloj', reloj);
   if (legajo) params.set('legajo', legajo);
+  if (nombre) params.set('nombre', nombre);
   if (desde)  params.set('fecha_desde', desde);
   if (hasta)  params.set('fecha_hasta', hasta);
 
@@ -652,6 +654,7 @@ function sortFichadas(col) {
 function limpiarFiltrosFichadas() {
   document.getElementById('fich-reloj').value  = '';
   document.getElementById('fich-legajo').value = '';
+  document.getElementById('fich-nombre').value = '';
   document.getElementById('fich-desde').value  = '';
   document.getElementById('fich-hasta').value  = '';
   buscarFichadas();

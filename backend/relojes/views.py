@@ -1,5 +1,6 @@
 import os
 
+import psycopg2
 from django.conf import settings
 from django.utils import timezone
 from rest_framework import viewsets, status
@@ -121,15 +122,15 @@ class LogEntryViewSet(viewsets.ReadOnlyModelViewSet):
 
 
 class FichadasView(viewsets.ViewSet):
-    """Lee y filtra los registros guardados en los archivos .txt de fichadas."""
+    """Consulta y filtra fichadas desde la tabla ingresopersonal (PostgreSQL)."""
 
-    _TIPO_MAP = {'1': 'Entrada', '2': 'Salida', '3': 'Almuerzo', '4': 'Regreso'}
+    _TIPO_MAP = {1: 'Entrada', 2: 'Salida', 3: 'Almuerzo', 4: 'Regreso'}
     _LIMITE = 500
 
     def list(self, request):
-        fichadas_dir = settings.FICHADAS_DIR
         reloj_filtro  = request.query_params.get('reloj', '').strip()
         legajo_raw    = request.query_params.get('legajo', '').strip()
+        nombre_filtro = request.query_params.get('nombre', '').strip()
         fecha_desde   = request.query_params.get('fecha_desde', '').strip()
         fecha_hasta   = request.query_params.get('fecha_hasta', '').strip()
 
@@ -140,62 +141,92 @@ class FichadasView(viewsets.ViewSet):
             except ValueError:
                 legajo_filtro = legajo_raw.zfill(11)
 
+        # ip → nombre del reloj (desde Django SQLite)
+        ip_to_nombre = {r.ip: r.nombre for r in Reloj.objects.all()}
+        relojes_disponibles = sorted(ip_to_nombre.values())
+
+        conditions = []
+        params = []
+
+        if legajo_filtro:
+            conditions.append("i.idper = %s")
+            params.append(legajo_filtro)
+
+        if fecha_desde:
+            conditions.append("i.hora::date >= %s")
+            params.append(fecha_desde)
+
+        if fecha_hasta:
+            conditions.append("i.hora::date <= %s")
+            params.append(fecha_hasta)
+
+        if nombre_filtro:
+            conditions.append(
+                "TRIM(COALESCE(p.nombre,'') || ' ' || COALESCE(p.apellido,'')) ILIKE %s"
+            )
+            params.append(f"%{nombre_filtro}%")
+
+        if reloj_filtro:
+            ips = [ip for ip, nombre in ip_to_nombre.items() if nombre == reloj_filtro]
+            if not ips:
+                return Response({
+                    'total': 0, 'mostrados': 0,
+                    'relojes_disponibles': relojes_disponibles,
+                    'registros': [],
+                })
+            placeholders = ','.join(['%s'] * len(ips))
+            conditions.append(f"i.ip IN ({placeholders})")
+            params.extend(ips)
+
+        where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
+
+        db_conf = settings.FICHADAS_DB
         try:
-            archivos = sorted(f for f in os.listdir(fichadas_dir) if f.endswith('.txt'))
-        except OSError:
-            archivos = []
+            pg = psycopg2.connect(
+                host=db_conf["host"], port=db_conf["port"],
+                dbname=db_conf["dbname"], user=db_conf["user"],
+                password=db_conf["password"], options=db_conf.get("options", ""),
+            )
+            with pg:
+                with pg.cursor() as cur:
+                    cur.execute(
+                        f"SELECT COUNT(*) FROM public.ingresopersonal i "
+                        f"LEFT JOIN public.persons p ON p.idper = i.idper "
+                        f"{where}",
+                        params,
+                    )
+                    total = cur.fetchone()[0]
 
-        relojes_disponibles = [a[:-4] for a in archivos]
-        registros = []
-        seen = set()
+                    cur.execute(
+                        f"SELECT i.idper, i.hora, i.idtctrlper, i.ip, "
+                        f"TRIM(COALESCE(p.nombre,'')) || ' ' || TRIM(COALESCE(p.apellido,'')) "
+                        f"FROM public.ingresopersonal i "
+                        f"LEFT JOIN public.persons p ON p.idper = i.idper "
+                        f"{where} "
+                        f"ORDER BY i.hora DESC LIMIT %s",
+                        params + [self._LIMITE],
+                    )
+                    rows = cur.fetchall()
+            pg.close()
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-        for archivo in archivos:
-            reloj_nombre = archivo[:-4]
-            if reloj_filtro and reloj_nombre != reloj_filtro:
-                continue
-            try:
-                with open(os.path.join(fichadas_dir, archivo), encoding='utf-8') as f:
-                    for line in f:
-                        line = line.rstrip('\n')
-                        if not line or line.startswith('#') or len(line) < 35:
-                            continue
-                        try:
-                            idper      = line[0:11].strip()
-                            hora       = line[12:35].strip()
-                            idtctrlper = line[43:55].strip() if len(line) > 43 else ''
-                            nombre     = line[81:].strip()   if len(line) > 81 else ''
+        registros = [
+            {
+                'legajo': (idper or '').strip(),
+                'nombre': (nombre or '').strip(),
+                'hora':   hora.strftime('%Y-%m-%d %H:%M:%S.000') if hora else '',
+                'tipo':   self._TIPO_MAP.get(idtctrlper, str(idtctrlper)),
+                'reloj':  ip_to_nombre.get(ip, ip),
+            }
+            for idper, hora, idtctrlper, ip, nombre in rows
+        ]
 
-                            if legajo_filtro and idper != legajo_filtro:
-                                continue
-                            if fecha_desde and hora[:10] < fecha_desde:
-                                continue
-                            if fecha_hasta and hora[:10] > fecha_hasta:
-                                continue
-
-                            key = (idper, hora, reloj_nombre)
-                            if key in seen:
-                                continue
-                            seen.add(key)
-
-                            registros.append({
-                                'legajo': idper,
-                                'nombre': nombre,
-                                'hora':   hora,
-                                'tipo':   self._TIPO_MAP.get(idtctrlper, idtctrlper),
-                                'reloj':  reloj_nombre,
-                            })
-                        except (IndexError, ValueError):
-                            continue
-            except OSError:
-                continue
-
-        registros.sort(key=lambda r: r['hora'], reverse=True)
-        total = len(registros)
         return Response({
             'total':               total,
-            'mostrados':           min(total, self._LIMITE),
+            'mostrados':           len(registros),
             'relojes_disponibles': relojes_disponibles,
-            'registros':           registros[:self._LIMITE],
+            'registros':           registros,
         })
 
 
