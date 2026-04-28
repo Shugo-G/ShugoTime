@@ -3,6 +3,8 @@
 const API = '/api';
 
 // ─── Estado global ───────────────────────────────────────────────────────────
+let currentUser = null; // null = invitado, {username} = admin
+
 let estado = {
   en_progreso: false,
   ciclo_activo: null,
@@ -50,8 +52,90 @@ function badgeEstado(estado, activo) {
   return '';
 }
 
+// ─── Autenticación ───────────────────────────────────────────────────────────
+const _ADMIN_PAGES = ['dashboard', 'relojes', 'logs', 'ciclos', 'registros', 'programacion'];
+
+async function initAuth() {
+  try {
+    const data = await api('GET', '/me/');
+    currentUser = data.authenticated ? data : null;
+  } catch {
+    currentUser = null;
+  }
+  applyAuthState();
+}
+
+function applyAuthState() {
+  const isAdmin = currentUser !== null;
+
+  document.querySelectorAll('nav a[data-admin-only]').forEach(el => {
+    el.style.display = isAdmin ? '' : 'none';
+  });
+
+  const btnLeer = document.getElementById('btn-leer-todos');
+  if (btnLeer) btnLeer.style.display = isAdmin ? '' : 'none';
+
+  document.getElementById('auth-guest').style.display = isAdmin ? 'none' : '';
+  document.getElementById('auth-user').style.display  = isAdmin ? '' : 'none';
+  if (isAdmin) {
+    document.getElementById('auth-username-label').textContent = currentUser.username;
+  }
+
+  navTo(isAdmin ? 'dashboard' : 'fichadas');
+
+  if (isAdmin && !estadoPollingTimer) {
+    estadoPollingTimer = setInterval(fetchEstado, 5000);
+  } else if (!isAdmin && estadoPollingTimer) {
+    clearInterval(estadoPollingTimer);
+    estadoPollingTimer = null;
+  }
+}
+
+function mostrarLogin() {
+  document.getElementById('login-username').value = '';
+  document.getElementById('login-password').value = '';
+  document.getElementById('login-error').style.display = 'none';
+  document.getElementById('modal-login').classList.add('open');
+  setTimeout(() => document.getElementById('login-username').focus(), 50);
+}
+
+function cerrarLogin() {
+  document.getElementById('modal-login').classList.remove('open');
+}
+
+async function submitLogin() {
+  const username = document.getElementById('login-username').value.trim();
+  const password = document.getElementById('login-password').value;
+  const errorEl  = document.getElementById('login-error');
+
+  if (!username || !password) {
+    errorEl.textContent = 'Ingresá usuario y contraseña';
+    errorEl.style.display = '';
+    return;
+  }
+
+  try {
+    const data = await api('POST', '/login/', { username, password });
+    currentUser = { authenticated: true, username: data.username };
+    cerrarLogin();
+    applyAuthState();
+    toast(`Bienvenido, ${data.username}`, 'ok');
+  } catch (e) {
+    errorEl.textContent = e.data?.error || 'Error al iniciar sesión';
+    errorEl.style.display = '';
+  }
+}
+
+async function cerrarSesion() {
+  try { await api('POST', '/logout/', {}); } catch {}
+  currentUser = null;
+  applyAuthState();
+  toast('Sesión cerrada', 'ok');
+}
+
 // ─── Navegacion ──────────────────────────────────────────────────────────────
 function navTo(page) {
+  if (!currentUser && _ADMIN_PAGES.includes(page)) page = 'fichadas';
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('nav a').forEach(a => a.classList.remove('active'));
   document.getElementById('page-' + page).classList.add('active');
@@ -802,6 +886,5 @@ async function eliminarTarea(id, nombre) {
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
-  navTo('dashboard');
-  estadoPollingTimer = setInterval(fetchEstado, 5000);
+  initAuth();
 });

@@ -16,30 +16,37 @@
     <p>Gestión de relojes biométricos</p>
   </div>
   <nav>
-    <a data-page="dashboard">
+    <a data-page="dashboard" data-admin-only>
       <span class="icon">◉</span> Dashboard
     </a>
-    <a data-page="relojes">
+    <a data-page="relojes" data-admin-only>
       <span class="icon">⊞</span> Relojes
     </a>
-    <a data-page="logs">
+    <a data-page="logs" data-admin-only>
       <span class="icon">≡</span> Logs
     </a>
-    <a data-page="ciclos">
+    <a data-page="ciclos" data-admin-only>
       <span class="icon">⟳</span> Ciclos
     </a>
-    <a data-page="registros">
+    <a data-page="registros" data-admin-only>
       <span class="icon">⊡</span> Registros
     </a>
     <a data-page="fichadas">
       <span class="icon">▤</span> Fichadas
     </a>
-    <a data-page="programacion">
+    <a data-page="programacion" data-admin-only>
       <span class="icon">⏱</span> Programación
     </a>
   </nav>
   <div class="sidebar-footer">
-    DPOSS (Obras Sanitarias)
+    <div class="sidebar-org">DPOSS (Obras Sanitarias)</div>
+    <div id="auth-guest" style="display:none;margin-top:10px">
+      <button class="btn-login" onclick="mostrarLogin()">⚿ Iniciar sesión</button>
+    </div>
+    <div id="auth-user" style="display:none;margin-top:10px">
+      <div class="auth-username" id="auth-username-label"></div>
+      <button class="btn-logout" onclick="cerrarSesion()">Cerrar sesión</button>
+    </div>
   </div>
 </aside>
 
@@ -49,7 +56,7 @@
   <div id="topbar">
     <span class="topbar-title" id="topbar-title">Dashboard</span>
     <div class="topbar-actions">
-      <button class="btn btn-primary btn-leer-todos" onclick="leerTodos()">
+      <button id="btn-leer-todos" class="btn btn-primary btn-leer-todos" onclick="leerTodos()" style="display:none">
         ▶ Leer todos
       </button>
     </div>
@@ -419,6 +426,33 @@
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="cerrarModalTarea()">Cancelar</button>
       <button class="btn btn-primary" onclick="guardarTarea()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal login -->
+<div class="overlay" id="modal-login">
+  <div class="modal" style="width:340px">
+    <div class="modal-header">
+      <h2>Iniciar sesión</h2>
+      <button class="modal-close" onclick="cerrarLogin()">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="field">
+        <label>Usuario</label>
+        <input type="text" id="login-username" placeholder="Usuario"
+          onkeydown="if(event.key==='Enter')document.getElementById('login-password').focus()">
+      </div>
+      <div class="field">
+        <label>Contraseña</label>
+        <input type="password" id="login-password" placeholder="Contraseña"
+          onkeydown="if(event.key==='Enter')submitLogin()">
+      </div>
+      <p id="login-error" style="color:var(--danger);font-size:12px;margin:0;display:none"></p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="cerrarLogin()">Cancelar</button>
+      <button class="btn btn-primary" onclick="submitLogin()">Ingresar</button>
     </div>
   </div>
 </div>

@@ -2,19 +2,60 @@ import os
 
 import psycopg2
 from django.conf import settings
+from django.contrib.auth import authenticate, login as auth_login, logout as auth_logout
 from django.utils import timezone
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.views import APIView
 
 from .models import Reloj, CicloLectura, LogEntry, TareaProgramada
 from .serializers import RelojSerializer, CicloLecturaSerializer, LogEntrySerializer, TareaProgramadaSerializer
 from . import zk_reader
 
 
+class LoginView(APIView):
+    authentication_classes = []
+    permission_classes = []
+
+    def post(self, request):
+        username = request.data.get('username', '').strip()
+        password = request.data.get('password', '')
+        user = authenticate(request._request, username=username, password=password)
+        if user and user.is_active:
+            auth_login(request._request, user)
+            return Response({'username': user.username})
+        return Response(
+            {'error': 'Usuario o contraseña incorrectos'},
+            status=status.HTTP_401_UNAUTHORIZED,
+        )
+
+
+class LogoutView(APIView):
+    authentication_classes = []
+    permission_classes = []
+
+    def post(self, request):
+        auth_logout(request._request)
+        return Response({'ok': True})
+
+
+class MeView(APIView):
+    authentication_classes = []
+    permission_classes = []
+
+    def get(self, request):
+        u = request._request.user
+        if u and u.is_authenticated:
+            return Response({'authenticated': True, 'username': u.username})
+        return Response({'authenticated': False})
+
+
 class RelojViewSet(viewsets.ModelViewSet):
     queryset = Reloj.objects.all()
     serializer_class = RelojSerializer
+    permission_classes = [IsAuthenticated]
 
     @action(detail=True, methods=["post"], url_path="leer")
     def leer(self, request, pk=None):
@@ -84,6 +125,7 @@ class RelojViewSet(viewsets.ModelViewSet):
 class CicloLecturaViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = CicloLectura.objects.all().prefetch_related("relojes").order_by("-inicio")
     serializer_class = CicloLecturaSerializer
+    permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
         qs = super().get_queryset()
@@ -98,6 +140,7 @@ class CicloLecturaViewSet(viewsets.ReadOnlyModelViewSet):
 
 class LogEntryViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = LogEntrySerializer
+    permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
         qs = LogEntry.objects.all().order_by("-id")
@@ -233,6 +276,7 @@ class FichadasView(viewsets.ViewSet):
 class TareaProgramadaViewSet(viewsets.ModelViewSet):
     queryset = TareaProgramada.objects.all().prefetch_related("relojes")
     serializer_class = TareaProgramadaSerializer
+    permission_classes = [IsAuthenticated]
 
     @action(detail=True, methods=["post"], url_path="toggle")
     def toggle(self, request, pk=None):
@@ -244,6 +288,7 @@ class TareaProgramadaViewSet(viewsets.ModelViewSet):
 
 class EstadoView(viewsets.ViewSet):
     """Endpoint de estado general de la aplicacion."""
+    permission_classes = [IsAuthenticated]
 
     def list(self, request):
         en_progreso = zk_reader.hay_ciclo_en_progreso()
