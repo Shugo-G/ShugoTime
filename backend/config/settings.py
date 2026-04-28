@@ -1,10 +1,11 @@
+import os
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = "django-insecure-shugo-clock-change-in-production"
+SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "django-insecure-shugo-clock-change-in-production")
 
-DEBUG = True
+DEBUG = os.environ.get("DJANGO_DEBUG", "true").lower() == "true"
 
 ALLOWED_HOSTS = ["*"]
 
@@ -23,6 +24,7 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -51,28 +53,27 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "config.wsgi.application"
 
-# Base de datos de la aplicacion (SQLite — facil de arrancar sin configuracion)
+# Base de datos de la aplicacion (SQLite)
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db.sqlite3",
+        "NAME": Path(os.environ.get("SQLITE_PATH", str(BASE_DIR / "db.sqlite3"))),
     }
 }
 
 # Configuracion de la base de datos donde se insertan las fichadas
 # (el PostgreSQL existente del sistema de personal)
 FICHADAS_DB = {
-    "host": "192.168.0.150",
-    "port": 6003,
-    "dbname": "postgres",
-    "user": "postgres",
-    "password": "postgres",
-    "options": "-c search_path=public",
+    "host":     os.environ.get("FICHADAS_DB_HOST",     "192.168.0.150"),
+    "port":     int(os.environ.get("FICHADAS_DB_PORT", "6003")),
+    "dbname":   os.environ.get("FICHADAS_DB_NAME",     "postgres"),
+    "user":     os.environ.get("FICHADAS_DB_USER",     "postgres"),
+    "password": os.environ.get("FICHADAS_DB_PASSWORD", "postgres"),
+    "options":  os.environ.get("FICHADAS_DB_OPTIONS",  "-c search_path=public"),
 }
 
-# Directorio donde se guardan los archivos de fichadas
-import os
-FICHADAS_DIR = BASE_DIR / "fichadas"
+# Directorio donde se guardan los archivos de fichadas (backup txt)
+FICHADAS_DIR = Path(os.environ.get("FICHADAS_DIR", str(BASE_DIR / "fichadas")))
 
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
@@ -87,7 +88,9 @@ USE_I18N = True
 USE_TZ = True
 
 STATIC_URL = "/static/"
+STATIC_ROOT = BASE_DIR / "staticfiles"
 STATICFILES_DIRS = [BASE_DIR / "static"]
+WHITENOISE_USE_FINDERS = True
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 

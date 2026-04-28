@@ -1,0 +1,13 @@
+services:
+  web:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+    environment:
+      - SQLITE_PATH=/app/data/db.sqlite3
+      - FICHADAS_DIR=/app/data/fichadas
+    env_file:
+      - .env
+    restart: unless-stopped
