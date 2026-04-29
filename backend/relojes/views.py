@@ -6,7 +6,7 @@ from django.contrib.auth import authenticate, login as auth_login, logout as aut
 from django.utils import timezone
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, IsAuthenticatedOrReadOnly, AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -55,9 +55,10 @@ class MeView(APIView):
 class RelojViewSet(viewsets.ModelViewSet):
     queryset = Reloj.objects.all()
     serializer_class = RelojSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticatedOrReadOnly]
 
-    @action(detail=True, methods=["post"], url_path="leer")
+    @action(detail=True, methods=["post"], url_path="leer",
+            permission_classes=[IsAuthenticated])
     def leer(self, request, pk=None):
         """Dispara la lectura de un reloj especifico."""
         reloj = self.get_object()
@@ -85,7 +86,8 @@ class RelojViewSet(viewsets.ModelViewSet):
             return Response({"error": error}, status=status.HTTP_502_BAD_GATEWAY)
         return Response({"registros": records, "total": len(records)})
 
-    @action(detail=True, methods=["post"], url_path="ping")
+    @action(detail=True, methods=["post"], url_path="ping",
+            permission_classes=[IsAuthenticated])
     def ping(self, request, pk=None):
         """Verifica conectividad con el reloj sin realizar cambios."""
         reloj = self.get_object()
@@ -99,7 +101,8 @@ class RelojViewSet(viewsets.ModelViewSet):
             return Response({"error": error}, status=status.HTTP_502_BAD_GATEWAY)
         return Response({"ok": True}, status=status.HTTP_200_OK)
 
-    @action(detail=True, methods=["post"], url_path="reiniciar")
+    @action(detail=True, methods=["post"], url_path="reiniciar",
+            permission_classes=[IsAuthenticated])
     def reiniciar(self, request, pk=None):
         """Envía el comando de reinicio al reloj."""
         reloj = self.get_object()
@@ -113,7 +116,8 @@ class RelojViewSet(viewsets.ModelViewSet):
             return Response({"error": error}, status=status.HTTP_502_BAD_GATEWAY)
         return Response({"ok": True}, status=status.HTTP_200_OK)
 
-    @action(detail=False, methods=["post"], url_path="leer-todos")
+    @action(detail=False, methods=["post"], url_path="leer-todos",
+            permission_classes=[IsAuthenticated])
     def leer_todos(self, request):
         """Dispara la lectura de todos los relojes activos."""
         ciclo_id, error = zk_reader.iniciar_ciclo()
@@ -288,7 +292,7 @@ class TareaProgramadaViewSet(viewsets.ModelViewSet):
 
 class EstadoView(viewsets.ViewSet):
     """Endpoint de estado general de la aplicacion."""
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]
 
     def list(self, request):
         en_progreso = zk_reader.hay_ciclo_en_progreso()

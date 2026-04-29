@@ -53,7 +53,7 @@ function badgeEstado(estado, activo) {
 }
 
 // ─── Autenticación ───────────────────────────────────────────────────────────
-const _ADMIN_PAGES = ['dashboard', 'relojes', 'logs', 'ciclos', 'registros', 'programacion'];
+const _ADMIN_PAGES = ['relojes', 'logs', 'ciclos', 'registros', 'programacion'];
 
 async function initAuth() {
   try {
@@ -271,6 +271,7 @@ async function renderDashboard() {
           ? `<div class="rc-error">${r.ultimo_error}</div>`
           : ''
         }
+        ${currentUser ? `
         <div class="rc-actions">
           <button class="btn btn-ghost btn-sm" onclick="leerReloj(${r.id}, '${r.nombre}')"
             ${!r.activo || estado.en_progreso ? 'disabled' : ''}>
@@ -280,7 +281,7 @@ async function renderDashboard() {
             ${!r.activo ? 'disabled' : ''}>
             ⬡ Ping
           </button>
-        </div>
+        </div>` : ''}
       </div>
     `;
   }).join('');
