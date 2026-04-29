@@ -1,0 +1,12 @@
+services:
+  web:
+    environment:
+      - DJANGO_DEBUG=false
+    restart: always
+    networks:
+      - npm-net
+
+networks:
+  npm-net:
+    external: true
+    name: nginx-proxy-manager_npm-net

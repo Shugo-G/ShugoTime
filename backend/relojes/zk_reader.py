@@ -203,7 +203,7 @@ def _procesar_reloj(reloj_obj, ciclo):
 
     try:
         zk = ZK(ip, port=puerto, timeout=5, password=password,
-                 force_udp=False, ommit_ping=False)
+                 force_udp=False, ommit_ping=True)
 
         _log(ciclo, nombre, "Conectando", "Conectando...")
         conn = zk.connect()
@@ -312,7 +312,7 @@ def leer_registros_reloj(reloj_obj):
     conn = None
     try:
         zk = ZK(reloj_obj.ip, port=reloj_obj.puerto, timeout=5,
-                password=reloj_obj.password, force_udp=False, ommit_ping=False)
+                password=reloj_obj.password, force_udp=False, ommit_ping=True)
         conn = zk.connect()
         attendances = conn.get_attendance()
         try:
@@ -348,7 +348,7 @@ def ping_reloj(reloj_obj):
     conn = None
     try:
         zk = ZK(reloj_obj.ip, port=reloj_obj.puerto, timeout=5,
-                password=reloj_obj.password, force_udp=False, ommit_ping=False)
+                password=reloj_obj.password, force_udp=False, ommit_ping=True)
         conn = zk.connect()
         return True, None
     except Exception as e:
@@ -369,7 +369,7 @@ def reiniciar_reloj(reloj_obj):
     conn = None
     try:
         zk = ZK(reloj_obj.ip, port=reloj_obj.puerto, timeout=5,
-                password=reloj_obj.password, force_udp=False, ommit_ping=False)
+                password=reloj_obj.password, force_udp=False, ommit_ping=True)
         conn = zk.connect()
         conn.restart()
         return True, None
