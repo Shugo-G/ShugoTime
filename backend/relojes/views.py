@@ -188,9 +188,9 @@ class FichadasView(viewsets.ViewSet):
             except ValueError:
                 legajo_filtro = legajo_raw.zfill(11)
 
-        # ip → nombre del reloj (desde Django SQLite)
-        ip_to_nombre = {r.ip: r.nombre for r in Reloj.objects.all()}
-        relojes_disponibles = sorted(ip_to_nombre.values())
+        todos_relojes = list(Reloj.objects.all())
+        ip_to_nombre = {r.ip: r.nombre for r in todos_relojes}
+        relojes_disponibles = sorted(r.nombre for r in todos_relojes)
 
         conditions = []
         params = []
@@ -214,7 +214,7 @@ class FichadasView(viewsets.ViewSet):
             params.append(f"%{nombre_filtro}%")
 
         if reloj_filtro:
-            ips = [ip for ip, nombre in ip_to_nombre.items() if nombre == reloj_filtro]
+            ips = list(Reloj.objects.filter(nombre=reloj_filtro).values_list('ip', flat=True))
             if not ips:
                 return Response({
                     'total': 0, 'mostrados': 0,

@@ -613,21 +613,20 @@ async function cargarRegistros() {
 
   try {
     const data = await api('GET', `/relojes/${id}/registros/`);
-    statusEl.textContent = `${data.total} registros`;
 
     if (!data.registros.length) {
+      _registrosData = [];
+      document.getElementById('reg-filtros').style.display = 'none';
       tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:30px">El reloj no tiene registros almacenados.</td></tr>`;
+      statusEl.textContent = '0 registros';
       return;
     }
 
-    tbody.innerHTML = data.registros.map(r => `
-      <tr>
-        <td class="mono">${r.user_id}</td>
-        <td>${r.nombre || '—'}</td>
-        <td class="mono">${r.timestamp}</td>
-        <td>${r.tipo}</td>
-      </tr>
-    `).join('');
+    _registrosData = data.registros;
+    document.getElementById('reg-legajo').value = '';
+    document.getElementById('reg-nombre').value = '';
+    document.getElementById('reg-filtros').style.display = 'flex';
+    filtrarRegistros();
   } catch (e) {
     statusEl.textContent = '';
     toast(e.data?.error || `Error al leer ${nombre}`, 'error');
@@ -636,6 +635,43 @@ async function cargarRegistros() {
     btn.disabled = false;
     btn.textContent = 'Cargar';
   }
+}
+
+// ─── Registros filtrado ───────────────────────────────────────────────────────
+let _registrosData = [];
+
+function filtrarRegistros() {
+  const legajo = document.getElementById('reg-legajo').value.trim().toLowerCase();
+  const nombre = document.getElementById('reg-nombre').value.trim().toLowerCase();
+  const tbody = document.getElementById('reg-tbody');
+  const statusEl = document.getElementById('reg-status');
+
+  let lista = _registrosData;
+  if (legajo) lista = lista.filter(r => String(r.user_id).toLowerCase().includes(legajo));
+  if (nombre) lista = lista.filter(r => (r.nombre || '').toLowerCase().includes(nombre));
+
+  if (!lista.length) {
+    tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:30px">Sin resultados para el filtro.</td></tr>`;
+  } else {
+    tbody.innerHTML = lista.map(r => `
+      <tr>
+        <td class="mono">${r.user_id}</td>
+        <td>${r.nombre || '—'}</td>
+        <td class="mono">${r.timestamp}</td>
+        <td>${r.tipo}</td>
+      </tr>
+    `).join('');
+  }
+
+  statusEl.textContent = (legajo || nombre)
+    ? `${lista.length} de ${_registrosData.length} registros`
+    : `${_registrosData.length} registros`;
+}
+
+function limpiarFiltrosRegistros() {
+  document.getElementById('reg-legajo').value = '';
+  document.getElementById('reg-nombre').value = '';
+  filtrarRegistros();
 }
 
 // ─── Fichadas guardadas ───────────────────────────────────────────────────────
