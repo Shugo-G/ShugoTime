@@ -625,6 +625,7 @@ async function cargarRegistros() {
     _registrosData = data.registros;
     document.getElementById('reg-legajo').value = '';
     document.getElementById('reg-nombre').value = '';
+    document.getElementById('reg-fecha').value  = '';
     document.getElementById('reg-filtros').style.display = 'flex';
     filtrarRegistros();
   } catch (e) {
@@ -643,12 +644,14 @@ let _registrosData = [];
 function filtrarRegistros() {
   const legajo = document.getElementById('reg-legajo').value.trim().toLowerCase();
   const nombre = document.getElementById('reg-nombre').value.trim().toLowerCase();
+  const fecha  = document.getElementById('reg-fecha').value;
   const tbody = document.getElementById('reg-tbody');
   const statusEl = document.getElementById('reg-status');
 
   let lista = _registrosData;
   if (legajo) lista = lista.filter(r => String(r.user_id).toLowerCase().includes(legajo));
   if (nombre) lista = lista.filter(r => (r.nombre || '').toLowerCase().includes(nombre));
+  if (fecha)  lista = lista.filter(r => r.timestamp.slice(0, 10) === fecha);
 
   if (!lista.length) {
     tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:30px">Sin resultados para el filtro.</td></tr>`;
@@ -663,7 +666,7 @@ function filtrarRegistros() {
     `).join('');
   }
 
-  statusEl.textContent = (legajo || nombre)
+  statusEl.textContent = (legajo || nombre || fecha)
     ? `${lista.length} de ${_registrosData.length} registros`
     : `${_registrosData.length} registros`;
 }
@@ -671,6 +674,7 @@ function filtrarRegistros() {
 function limpiarFiltrosRegistros() {
   document.getElementById('reg-legajo').value = '';
   document.getElementById('reg-nombre').value = '';
+  document.getElementById('reg-fecha').value  = '';
   filtrarRegistros();
 }
 

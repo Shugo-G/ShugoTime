@@ -232,6 +232,11 @@
             oninput="filtrarRegistros()"
             style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:var(--radius);padding:5px 10px;font-size:13px;width:160px">
         </div>
+        <div style="display:flex;gap:6px;align-items:center">
+          <label style="font-size:12px;color:var(--text-dim)">Fecha:</label>
+          <input type="date" id="reg-fecha" onchange="filtrarRegistros()"
+            style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:var(--radius);padding:5px 10px;font-size:13px">
+        </div>
         <button class="btn btn-ghost btn-sm" onclick="limpiarFiltrosRegistros()">Limpiar</button>
       </div>
 
