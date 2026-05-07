@@ -53,7 +53,7 @@ function badgeEstado(estado, activo) {
 }
 
 // ─── Autenticación ───────────────────────────────────────────────────────────
-const _ADMIN_PAGES = ['relojes', 'logs', 'ciclos', 'registros', 'programacion'];
+const _ADMIN_PAGES = ['relojes', 'logs', 'ciclos', 'programacion'];
 
 async function initAuth() {
   try {
@@ -81,7 +81,7 @@ function applyAuthState() {
     document.getElementById('auth-username-label').textContent = currentUser.username;
   }
 
-  navTo(isAdmin ? 'dashboard' : 'fichadas');
+  navTo('dashboard');
 
   if (isAdmin && !estadoPollingTimer) {
     estadoPollingTimer = setInterval(fetchEstado, 5000);
