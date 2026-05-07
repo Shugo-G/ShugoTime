@@ -189,7 +189,8 @@ class FichadasView(viewsets.ViewSet):
                 legajo_filtro = legajo_raw.zfill(11)
 
         todos_relojes = list(Reloj.objects.all())
-        ip_to_nombre = {r.ip: r.nombre for r in todos_relojes}
+        # clave (ip, idadm) para distinguir relojes con la misma IP pero distinto puerto
+        ip_idadm_to_nombre = {(r.ip, r.idadm): r.nombre for r in todos_relojes}
         relojes_disponibles = sorted(r.nombre for r in todos_relojes)
 
         conditions = []
@@ -214,16 +215,18 @@ class FichadasView(viewsets.ViewSet):
             params.append(f"%{nombre_filtro}%")
 
         if reloj_filtro:
-            ips = list(Reloj.objects.filter(nombre=reloj_filtro).values_list('ip', flat=True))
-            if not ips:
+            pares = [(r.ip, r.idadm) for r in todos_relojes if r.nombre == reloj_filtro]
+            if not pares:
                 return Response({
                     'total': 0, 'mostrados': 0,
                     'relojes_disponibles': relojes_disponibles,
                     'registros': [],
                 })
-            placeholders = ','.join(['%s'] * len(ips))
-            conditions.append(f"i.ip IN ({placeholders})")
-            params.extend(ips)
+            # (ip, idadm) para no confundir relojes con la misma IP
+            cond_pares = ' OR '.join(['(i.ip = %s AND i.idadm = %s)'] * len(pares))
+            conditions.append(f"({cond_pares})")
+            for ip, idadm in pares:
+                params.extend([ip, idadm])
 
         where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
 
@@ -245,7 +248,7 @@ class FichadasView(viewsets.ViewSet):
                     total = cur.fetchone()[0]
 
                     cur.execute(
-                        f"SELECT i.idper, i.hora, i.idtctrlper, i.ip, "
+                        f"SELECT i.idper, i.hora, i.idtctrlper, i.ip, i.idadm, "
                         f"TRIM(COALESCE(p.nombre,'')) || ' ' || TRIM(COALESCE(p.apellido,'')) "
                         f"FROM public.ingresopersonal i "
                         f"LEFT JOIN public.persons p ON p.idper = i.idper "
@@ -264,9 +267,9 @@ class FichadasView(viewsets.ViewSet):
                 'nombre': (nombre or '').strip(),
                 'hora':   hora.strftime('%Y-%m-%d %H:%M:%S.000') if hora else '',
                 'tipo':   self._TIPO_MAP.get(idtctrlper, str(idtctrlper)),
-                'reloj':  ip_to_nombre.get(ip, ip),
+                'reloj':  ip_idadm_to_nombre.get((ip, idadm), ip),
             }
-            for idper, hora, idtctrlper, ip, nombre in rows
+            for idper, hora, idtctrlper, ip, idadm, nombre in rows
         ]
 
         return Response({
