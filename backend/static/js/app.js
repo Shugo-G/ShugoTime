@@ -263,9 +263,9 @@ async function renderDashboard() {
         </div>
         <div class="rc-ip">${r.ip}:${r.puerto}</div>
         <div class="rc-info">idadm: ${r.idadm}</div>
-        ${r.ultimo_ciclo_display
-          ? `<div class="rc-ultimo">Ultimo: ${r.ultimo_ciclo_display}</div>`
-          : '<div class="rc-ultimo">Sin lectura</div>'
+        ${r.ultimo_ciclo_ok_display
+          ? `<div class="rc-ultimo">Ultimo OK: ${r.ultimo_ciclo_ok_display}</div>`
+          : '<div class="rc-ultimo">Sin lectura exitosa</div>'
         }
         ${r.ultimo_estado === 'error' && r.ultimo_error
           ? `<div class="rc-error">${r.ultimo_error}</div>`

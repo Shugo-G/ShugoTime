@@ -7,6 +7,7 @@ from .models import Reloj, CicloLectura, LogEntry, TareaProgramada
 
 class RelojSerializer(serializers.ModelSerializer):
     ultimo_ciclo_display = serializers.SerializerMethodField()
+    ultimo_ciclo_ok_display = serializers.SerializerMethodField()
 
     class Meta:
         model = Reloj
@@ -21,6 +22,8 @@ class RelojSerializer(serializers.ModelSerializer):
             "activo",
             "ultimo_ciclo",
             "ultimo_ciclo_display",
+            "ultimo_ciclo_ok",
+            "ultimo_ciclo_ok_display",
             "ultimo_estado",
             "ultimo_error",
             "fecha_creacion",
@@ -28,6 +31,7 @@ class RelojSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = [
             "ultimo_ciclo",
+            "ultimo_ciclo_ok",
             "ultimo_estado",
             "ultimo_error",
             "fecha_creacion",
@@ -38,6 +42,13 @@ class RelojSerializer(serializers.ModelSerializer):
         if obj.ultimo_ciclo:
             from django.utils import timezone
             local = timezone.localtime(obj.ultimo_ciclo)
+            return local.strftime("%d/%m/%Y %H:%M:%S")
+        return None
+
+    def get_ultimo_ciclo_ok_display(self, obj):
+        if obj.ultimo_ciclo_ok:
+            from django.utils import timezone
+            local = timezone.localtime(obj.ultimo_ciclo_ok)
             return local.strftime("%d/%m/%Y %H:%M:%S")
         return None
 

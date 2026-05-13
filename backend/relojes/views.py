@@ -293,6 +293,50 @@ class TareaProgramadaViewSet(viewsets.ModelViewSet):
         return Response({"activo": tarea.activo})
 
 
+class HubView(APIView):
+    """Endpoint consolidado para integracion con otras apps (ShugoHub, etc.)."""
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        from django.utils import timezone as tz
+
+        relojes_activos = Reloj.objects.filter(activo=True).order_by("nombre")
+        relojes_con_error = relojes_activos.filter(ultimo_estado=Reloj.ESTADO_ERROR).count()
+        relojes_ok = relojes_activos.filter(ultimo_estado=Reloj.ESTADO_OK).count()
+
+        ultimo_ciclo = (
+            CicloLectura.objects.exclude(estado=CicloLectura.ESTADO_EN_PROGRESO)
+            .order_by("-inicio")
+            .first()
+        )
+
+        def fmt(dt):
+            if dt:
+                return tz.localtime(dt).strftime("%d/%m/%Y %H:%M:%S")
+            return None
+
+        relojes_data = [
+            {
+                "nombre": r.nombre,
+                "ip": r.ip,
+                "puerto": r.puerto,
+                "idadm": r.idadm,
+                "estado": r.ultimo_estado,
+                "ultimo_ciclo_ok": fmt(r.ultimo_ciclo_ok),
+            }
+            for r in relojes_activos
+        ]
+
+        return Response({
+            "relojes_ok": relojes_ok,
+            "relojes_con_error": relojes_con_error,
+            "ultimo_ciclo_inicio": fmt(ultimo_ciclo.inicio) if ultimo_ciclo else None,
+            "ultimo_ciclo_fichadas": ultimo_ciclo.total_fichadas if ultimo_ciclo else None,
+            "relojes": relojes_data,
+        })
+
+
 class EstadoView(viewsets.ViewSet):
     """Endpoint de estado general de la aplicacion."""
     permission_classes = [AllowAny]

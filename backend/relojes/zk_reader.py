@@ -280,7 +280,8 @@ def _run_ciclo(ciclo_id, reloj_ids=None):
         else:
             reloj.ultimo_estado = Reloj.ESTADO_OK
             reloj.ultimo_error = ""
-        reloj.save(update_fields=["ultimo_ciclo", "ultimo_estado", "ultimo_error"])
+            reloj.ultimo_ciclo_ok = reloj.ultimo_ciclo
+        reloj.save(update_fields=["ultimo_ciclo", "ultimo_ciclo_ok", "ultimo_estado", "ultimo_error"])
 
     ciclo.fin = timezone.now()
     ciclo.estado = CicloLectura.ESTADO_ERROR if hubo_error else CicloLectura.ESTADO_EXITOSO

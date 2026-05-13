@@ -22,6 +22,7 @@ class Reloj(models.Model):
 
     # Estado calculado tras la ultima lectura
     ultimo_ciclo = models.DateTimeField(null=True, blank=True, verbose_name="Ultimo ciclo")
+    ultimo_ciclo_ok = models.DateTimeField(null=True, blank=True, verbose_name="Ultimo ciclo exitoso")
     ultimo_estado = models.CharField(
         max_length=20, choices=ESTADOS, default=ESTADO_PENDIENTE, verbose_name="Ultimo estado"
     )

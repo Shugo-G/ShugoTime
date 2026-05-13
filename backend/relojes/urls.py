@@ -3,7 +3,7 @@ from rest_framework.routers import DefaultRouter
 from .views import (
     RelojViewSet, CicloLecturaViewSet, LogEntryViewSet,
     EstadoView, FichadasView, TareaProgramadaViewSet,
-    LoginView, LogoutView, MeView,
+    LoginView, LogoutView, MeView, HubView,
 )
 
 router = DefaultRouter()
@@ -19,4 +19,5 @@ urlpatterns = [
     path("login/",  LoginView.as_view(),  name="login"),
     path("logout/", LogoutView.as_view(), name="logout"),
     path("me/",     MeView.as_view(),     name="me"),
+    path("hub/",    HubView.as_view(),    name="hub"),
 ]
