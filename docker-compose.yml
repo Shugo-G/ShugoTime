@@ -4,6 +4,7 @@ services:
     volumes:
       - ./data:/app/data
     environment:
+      - TZ=America/Argentina/Buenos_Aires
       - SQLITE_PATH=/app/data/db.sqlite3
       - FICHADAS_DIR=/app/data/fichadas
     env_file:

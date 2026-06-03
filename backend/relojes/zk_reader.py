@@ -182,6 +182,19 @@ def _filtrar_nuevas_fichadas(attendances, ip_reloj, ciclo, nombre):
     return nuevas
 
 
+def _corregir_anio(attendances, ciclo, nombre):
+    anio_actual = datetime.now().year
+    corregidas = 0
+    for a in attendances:
+        if a.timestamp.year != anio_actual:
+            a.timestamp = a.timestamp.replace(year=anio_actual)
+            corregidas += 1
+    if corregidas:
+        _log(ciclo, nombre, "Corrección año",
+             f"Corregido año en {corregidas} fichadas → {anio_actual}", advertencia=True)
+    return attendances
+
+
 def _procesar_reloj(reloj_obj, ciclo):
     """
     Conecta al reloj, lee las fichadas, las persiste y limpia el reloj.
@@ -209,6 +222,12 @@ def _procesar_reloj(reloj_obj, ciclo):
         conn = zk.connect()
         _log(ciclo, nombre, "Conectando", "Conectado con exito")
 
+        try:
+            conn.set_time(datetime.now())
+            _log(ciclo, nombre, "Sincronización", "Hora del reloj sincronizada con el servidor")
+        except Exception as e:
+            _log(ciclo, nombre, "Sincronización", f"No se pudo sincronizar hora: {e}", advertencia=True)
+
         _log(ciclo, nombre, "Inicializando", "Leyendo registros...")
         attendances = conn.get_attendance()
         cantidad = len(attendances)
@@ -225,6 +244,7 @@ def _procesar_reloj(reloj_obj, ciclo):
             _log(ciclo, nombre, "Inicializando",
                  "Equipo sin registraciones", advertencia=True)
         else:
+            attendances = _corregir_anio(attendances, ciclo, nombre)
             nuevas = _filtrar_nuevas_fichadas(attendances, ip, ciclo, nombre)
             if nuevas:
                 filepath = _guardar_fichadas(nuevas, idadm, ip, nombre, usuarios)
