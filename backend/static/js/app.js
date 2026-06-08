@@ -53,7 +53,7 @@ function badgeEstado(estado, activo) {
 }
 
 // ─── Autenticación ───────────────────────────────────────────────────────────
-const _ADMIN_PAGES = ['relojes', 'logs', 'ciclos', 'programacion'];
+const _ADMIN_PAGES = ['relojes', 'logs', 'ciclos', 'programacion', 'limpieza'];
 
 async function initAuth() {
   try {
@@ -148,6 +148,7 @@ function navTo(page) {
     registros:     'Registros en Reloj',
     fichadas:      'Fichadas guardadas',
     programacion:  'Programación',
+    limpieza:      'Limpieza de Relojes',
   }[page];
 
   if (page === 'dashboard')     renderDashboard();
@@ -157,6 +158,7 @@ function navTo(page) {
   if (page === 'registros')     renderRegistros();
   if (page === 'fichadas')      renderFichadas();
   if (page === 'programacion')  renderProgramacion();
+  if (page === 'limpieza')      renderLimpieza();
 }
 
 document.querySelectorAll('nav a[data-page]').forEach(a =>
@@ -922,6 +924,103 @@ async function eliminarTarea(id, nombre) {
     renderProgramacion();
   } catch {
     toast('Error al eliminar tarea', 'error');
+  }
+}
+
+// ─── Limpieza de relojes ──────────────────────────────────────────────────────
+let _limpiezaPendiente = null; // null = todos, number = id de reloj
+
+async function renderLimpieza() {
+  const tbody = document.getElementById('limpieza-tbody');
+  tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:30px">Cargando...</td></tr>';
+  try {
+    const relojes = await api('GET', '/relojes/?page_size=200');
+    const lista = relojes.results ?? relojes;
+    const activos = lista.filter(r => r.activo);
+    if (!activos.length) {
+      tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:30px">Sin relojes activos.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = activos.map(r => `
+      <tr>
+        <td><strong>${r.nombre}</strong></td>
+        <td class="mono">${r.ip}:${r.puerto}</td>
+        <td>${r.ultimo_ciclo_ok_display ?? '<span style="color:var(--muted)">—</span>'}</td>
+        <td>${badgeEstado(r.ultimo_estado, r.activo)}</td>
+        <td>
+          <button class="btn btn-danger btn-sm" onclick="confirmarLimpiar(${r.id}, '${r.nombre}')">
+            ⌫ Limpiar
+          </button>
+        </td>
+      </tr>
+    `).join('');
+  } catch {
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--danger);padding:30px">Error al cargar relojes.</td></tr>';
+  }
+}
+
+function confirmarLimpiar(id, nombre) {
+  _limpiezaPendiente = id;
+  const desc = document.getElementById('modal-limpieza-desc');
+  const titulo = document.getElementById('modal-limpieza-titulo');
+  if (id === null) {
+    titulo.textContent = 'Limpiar todos los relojes';
+    desc.textContent = 'Se borrarán los registros locales de asistencia de todos los relojes activos. Esta acción no puede deshacerse.';
+  } else {
+    titulo.textContent = `Limpiar ${nombre}`;
+    desc.textContent = `Se borrarán los registros locales de asistencia del reloj "${nombre}". Esta acción no puede deshacerse.`;
+  }
+  document.getElementById('limpieza-password').value = '';
+  document.getElementById('limpieza-error').style.display = 'none';
+  document.getElementById('modal-limpieza').classList.add('open');
+  setTimeout(() => document.getElementById('limpieza-password').focus(), 50);
+}
+
+function cerrarModalLimpieza() {
+  document.getElementById('modal-limpieza').classList.remove('open');
+  _limpiezaPendiente = null;
+}
+
+async function ejecutarLimpieza() {
+  const password = document.getElementById('limpieza-password').value;
+  const errorEl  = document.getElementById('limpieza-error');
+  const btn      = document.getElementById('btn-confirmar-limpieza');
+
+  if (!password) {
+    errorEl.textContent = 'Ingresá tu contraseña';
+    errorEl.style.display = '';
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = 'Limpiando...';
+  errorEl.style.display = 'none';
+
+  try {
+    if (_limpiezaPendiente === null) {
+      const data = await api('POST', '/relojes/limpiar-todos/', { password });
+      const ok    = data.resultados.filter(r => r.ok).length;
+      const fail  = data.resultados.filter(r => !r.ok);
+      cerrarModalLimpieza();
+      if (fail.length) {
+        const nombres = fail.map(r => `${r.nombre}: ${r.error}`).join('\n');
+        toast(`${ok} OK, ${fail.length} con error`, 'error');
+        console.warn('Errores en limpieza:', nombres);
+      } else {
+        toast(`${ok} reloj${ok !== 1 ? 'es' : ''} limpiado${ok !== 1 ? 's' : ''} correctamente`, 'ok');
+      }
+    } else {
+      await api('POST', `/relojes/${_limpiezaPendiente}/limpiar/`, { password });
+      cerrarModalLimpieza();
+      toast('Reloj limpiado correctamente', 'ok');
+    }
+    renderLimpieza();
+  } catch (e) {
+    errorEl.textContent = e.data?.error || 'Error al ejecutar la limpieza';
+    errorEl.style.display = '';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Confirmar limpieza';
   }
 }
 

@@ -382,6 +382,28 @@ def ping_reloj(reloj_obj):
                 pass
 
 
+def limpiar_reloj(reloj_obj):
+    """
+    Conecta al reloj y borra todos los registros de asistencia locales.
+    Retorna (True, None) si tuvo éxito, o (False, mensaje_error) si falló.
+    """
+    conn = None
+    try:
+        zk = ZK(reloj_obj.ip, port=reloj_obj.puerto, timeout=5,
+                password=reloj_obj.password, force_udp=False, ommit_ping=True)
+        conn = zk.connect()
+        conn.clear_attendance()
+        return True, None
+    except Exception as e:
+        return False, str(e)
+    finally:
+        if conn:
+            try:
+                conn.disconnect()
+            except Exception:
+                pass
+
+
 def reiniciar_reloj(reloj_obj):
     """
     Conecta al reloj y envía el comando de reinicio.

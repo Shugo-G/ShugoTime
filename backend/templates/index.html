@@ -37,6 +37,9 @@
     <a data-page="programacion" data-admin-only>
       <span class="icon">⏱</span> Programación
     </a>
+    <a data-page="limpieza" data-admin-only>
+      <span class="icon">⌫</span> Limpieza
+    </a>
   </nav>
   <div class="sidebar-footer">
     <div class="sidebar-org">DPOSS (Obras Sanitarias)</div>
@@ -361,6 +364,36 @@
       </div>
     </div>
 
+    <!-- ── Limpieza ── -->
+    <div id="page-limpieza" class="page">
+      <div class="section-header">
+        <div class="section-title" style="margin:0">Limpieza de registros en relojes</div>
+        <button class="btn btn-danger" onclick="confirmarLimpiar(null)">⌫ Limpiar todos</button>
+      </div>
+
+      <div class="limpieza-aviso">
+        <strong>Atención:</strong> esta acción borra los registros de asistencia almacenados
+        localmente en el reloj. No afecta los datos ya importados en la base de datos.
+      </div>
+
+      <div class="table-wrap" style="margin-top:16px">
+        <table>
+          <thead>
+            <tr>
+              <th>Reloj</th>
+              <th>IP</th>
+              <th>Último ciclo OK</th>
+              <th>Estado</th>
+              <th>Acción</th>
+            </tr>
+          </thead>
+          <tbody id="limpieza-tbody">
+            <tr><td colspan="5" style="text-align:center;color:var(--muted);padding:30px">Cargando...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
   </div><!-- /content -->
 </div><!-- /main -->
 
@@ -474,6 +507,29 @@
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="cerrarLogin()">Cancelar</button>
       <button class="btn btn-primary" onclick="submitLogin()">Ingresar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal limpieza -->
+<div class="overlay" id="modal-limpieza">
+  <div class="modal" style="width:380px">
+    <div class="modal-header">
+      <h2 id="modal-limpieza-titulo">Confirmar limpieza</h2>
+      <button class="modal-close" onclick="cerrarModalLimpieza()">×</button>
+    </div>
+    <div class="modal-body">
+      <p id="modal-limpieza-desc" style="font-size:13px;color:var(--text-dim);margin-bottom:16px"></p>
+      <div class="field">
+        <label>Contraseña</label>
+        <input type="password" id="limpieza-password" placeholder="Ingresá tu contraseña"
+          onkeydown="if(event.key==='Enter')ejecutarLimpieza()">
+      </div>
+      <p id="limpieza-error" style="color:var(--danger);font-size:12px;margin:0;display:none"></p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="cerrarModalLimpieza()">Cancelar</button>
+      <button class="btn btn-danger" id="btn-confirmar-limpieza" onclick="ejecutarLimpieza()">Confirmar limpieza</button>
     </div>
   </div>
 </div>

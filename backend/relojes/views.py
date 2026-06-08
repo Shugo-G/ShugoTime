@@ -125,6 +125,37 @@ class RelojViewSet(viewsets.ModelViewSet):
             return Response({"error": error}, status=status.HTTP_409_CONFLICT)
         return Response({"ciclo_id": ciclo_id}, status=status.HTTP_202_ACCEPTED)
 
+    @action(detail=True, methods=["post"], url_path="limpiar",
+            permission_classes=[IsAuthenticated])
+    def limpiar(self, request, pk=None):
+        """Borra los registros de asistencia locales de un reloj. Requiere password."""
+        password = request.data.get("password", "")
+        user = authenticate(request._request, username=request.user.username, password=password)
+        if user is None:
+            return Response({"error": "Contraseña incorrecta"}, status=status.HTTP_403_FORBIDDEN)
+        reloj = self.get_object()
+        if not reloj.activo:
+            return Response({"error": "El reloj está inactivo"}, status=status.HTTP_400_BAD_REQUEST)
+        success, error = zk_reader.limpiar_reloj(reloj)
+        if not success:
+            return Response({"error": error}, status=status.HTTP_502_BAD_GATEWAY)
+        return Response({"ok": True})
+
+    @action(detail=False, methods=["post"], url_path="limpiar-todos",
+            permission_classes=[IsAuthenticated])
+    def limpiar_todos(self, request):
+        """Borra los registros de asistencia en todos los relojes activos. Requiere password."""
+        password = request.data.get("password", "")
+        user = authenticate(request._request, username=request.user.username, password=password)
+        if user is None:
+            return Response({"error": "Contraseña incorrecta"}, status=status.HTTP_403_FORBIDDEN)
+        relojes = Reloj.objects.filter(activo=True)
+        resultados = []
+        for reloj in relojes:
+            success, error = zk_reader.limpiar_reloj(reloj)
+            resultados.append({"nombre": reloj.nombre, "ok": success, "error": error})
+        return Response({"resultados": resultados})
+
 
 class CicloLecturaViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = CicloLectura.objects.all().prefetch_related("relojes").order_by("-inicio")
