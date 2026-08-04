@@ -9,6 +9,7 @@ import threading
 from datetime import datetime
 
 import psycopg2
+import requests
 from django.conf import settings
 from django.utils import timezone
 
@@ -86,6 +87,117 @@ def _guardar_fichadas(attendances, idadm, ip_reloj, nombre_reloj, usuarios=None)
     return filepath
 
 
+TIPO_LABELS = {1: "Entrada", 2: "Salida", 3: "Almuerzo", 4: "Regreso Almuerzo"}
+
+_wasapi_from_id_cache = None
+
+
+def _wasapi_from_id():
+    """Devuelve el from_id configurado, o lo auto-descubre de /whatsapp-numbers."""
+    global _wasapi_from_id_cache
+    if _wasapi_from_id_cache:
+        return _wasapi_from_id_cache
+    from_id_env = getattr(settings, "WASAPI_FROM_ID", "")
+    if from_id_env:
+        _wasapi_from_id_cache = int(from_id_env)
+        return _wasapi_from_id_cache
+    try:
+        api_key = settings.WASAPI_API_KEY
+        resp = requests.get(
+            "https://api-ws.wasapi.io/api/v1/whatsapp-numbers",
+            headers={"Authorization": f"Bearer {api_key}", "Accept": "application/json"},
+            timeout=10,
+        )
+        data = resp.json()
+        numeros = data.get("results") or data if isinstance(data, list) else []
+        if numeros:
+            _wasapi_from_id_cache = int(numeros[0]["id"])
+            return _wasapi_from_id_cache
+    except Exception:
+        pass
+    return None
+
+
+def _notificar_fichadas(notif_data, ciclo, nombre_reloj):
+    """
+    Envía notificaciones WhatsApp por cada fichada nueva.
+    notif_data: list de (idper_str, timestamp, tipo_label)
+    Se ejecuta en hilo separado.
+    """
+    api_key = getattr(settings, "WASAPI_API_KEY", "")
+    if not api_key:
+        _log(ciclo, nombre_reloj, "WhatsApp", "WASAPI_API_KEY no configurada, notificaciones desactivadas", advertencia=True)
+        return
+
+    from_id = _wasapi_from_id()
+    if not from_id:
+        _log(ciclo, nombre_reloj, "WhatsApp", "from_id no disponible, notificaciones omitidas", advertencia=True)
+        return
+
+    # Consultar teléfonos habilitados en persons_data
+    db_conf = settings.FICHADAS_DB
+    try:
+        conn = psycopg2.connect(
+            host=db_conf["host"], port=db_conf["port"], dbname=db_conf["dbname"],
+            user=db_conf["user"], password=db_conf["password"],
+            options=db_conf.get("options", ""),
+        )
+        with conn.cursor() as cur:
+            cur.execute("SELECT idper, celular FROM persons_data WHERE notif_cel = true AND celular IS NOT NULL AND celular <> ''")
+            rows = cur.fetchall()
+        conn.close()
+    except Exception as e:
+        _log(ciclo, nombre_reloj, "WhatsApp", f"Error consultando persons_data: {e}", advertencia=True)
+        return
+
+    # Normalizar idper a formato zero-padded para comparar
+    telefonos = {}
+    for row in rows:
+        idper_norm = str(row[0]).strip().zfill(COL_IDPER)
+        celular = ''.join(filter(str.isdigit, str(row[1]).strip()))
+        if celular:
+            telefonos[idper_norm] = celular
+
+    candidatos = [(idper, ts, tipo) for idper, ts, tipo in notif_data if idper in telefonos]
+    _log(ciclo, nombre_reloj, "WhatsApp",
+         f"{len(telefonos)} contactos con notif_cel activo, {len(candidatos)} fichadas a notificar")
+
+    if not candidatos:
+        return
+
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {api_key}",
+        "Accept": "application/json",
+    }
+
+    enviados = errores = 0
+    for idper, timestamp, tipo in candidatos:
+        wa_id = telefonos[idper]
+        hora_str = timestamp.strftime("%d/%m/%Y %H:%M:%S")
+        mensaje = f"Se registró tu fichada:\n\nTipo: {tipo}\nHora: {hora_str}"
+        try:
+            resp = requests.post(
+                "https://api-ws.wasapi.io/api/v1/whatsapp-messages",
+                json={"message": mensaje, "wa_id": wa_id, "from_id": from_id},
+                headers=headers,
+                timeout=10,
+            )
+            if resp.ok:
+                enviados += 1
+                _log(ciclo, nombre_reloj, "WhatsApp", f"OK → idper {idper} ({tipo})")
+            else:
+                errores += 1
+                _log(ciclo, nombre_reloj, "WhatsApp",
+                     f"Error → idper {idper}: HTTP {resp.status_code} - {resp.text[:150]}",
+                     advertencia=True)
+        except Exception as e:
+            errores += 1
+            _log(ciclo, nombre_reloj, "WhatsApp", f"Error → idper {idper}: {e}", advertencia=True)
+
+    _log(ciclo, nombre_reloj, "WhatsApp", f"Resultado: {enviados} enviados, {errores} errores")
+
+
 def _insertar_fichadas(attendances, idadm, ip_reloj, ciclo, nombre):
     """Inserta las fichadas en la base de datos de personal via psycopg2."""
     SQL = """
@@ -118,6 +230,17 @@ def _insertar_fichadas(attendances, idadm, ip_reloj, ciclo, nombre):
         _log(ciclo, nombre, "Base de datos", f"Insertados {len(registros)} registros OK")
     finally:
         conn.close()
+
+    # Notificaciones WhatsApp en hilo separado para no bloquear el ciclo
+    notif_data = [
+        (
+            str(a.user_id).zfill(COL_IDPER),
+            a.timestamp,
+            TIPO_LABELS.get(punch_to_idtctrlper(a.punch), "Desconocido"),
+        )
+        for a in attendances
+    ]
+    threading.Thread(target=_notificar_fichadas, args=(notif_data, ciclo, nombre), daemon=True).start()
 
 
 def _filtrar_nuevas_fichadas(attendances, ciclo, nombre):

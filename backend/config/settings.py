@@ -109,3 +109,7 @@ REST_FRAMEWORK = {
 }
 
 CORS_ALLOW_ALL_ORIGINS = True
+
+# Wasapi (notificaciones WhatsApp)
+WASAPI_API_KEY = os.environ.get("WASAPI_API_KEY", "")
+WASAPI_FROM_ID = os.environ.get("WASAPI_FROM_ID", "")  # ID de línea; si vacío se auto-descubre
