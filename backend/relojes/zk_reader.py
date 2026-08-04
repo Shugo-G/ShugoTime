@@ -120,11 +120,11 @@ def _insertar_fichadas(attendances, idadm, ip_reloj, ciclo, nombre):
         conn.close()
 
 
-def _filtrar_nuevas_fichadas(attendances, ip_reloj, ciclo, nombre):
+def _filtrar_nuevas_fichadas(attendances, ciclo, nombre):
     """
     Devuelve solo las fichadas genuinamente nuevas:
     1. Elimina dobles fichadas: registros consecutivos del mismo usuario en menos de 60 s (conserva el primero).
-    2. Elimina registros ya presentes en la DB para esta IP.
+    2. Elimina registros ya presentes en la DB (por idper + hora, independiente de la IP del reloj).
     """
     if not attendances:
         return []
@@ -163,8 +163,8 @@ def _filtrar_nuevas_fichadas(attendances, ip_reloj, ciclo, nombre):
         with pg_conn.cursor() as cur:
             cur.execute(
                 "SELECT idper, hora FROM public.ingresopersonal "
-                "WHERE ip = %s AND hora BETWEEN %s AND %s",
-                (ip_reloj, min_ts, max_ts),
+                "WHERE hora BETWEEN %s AND %s",
+                (min_ts, max_ts),
             )
             existentes = {(row[0].strip(), row[1]) for row in cur.fetchall()}
     finally:
@@ -245,7 +245,7 @@ def _procesar_reloj(reloj_obj, ciclo):
                  "Equipo sin registraciones", advertencia=True)
         else:
             attendances = _corregir_anio(attendances, ciclo, nombre)
-            nuevas = _filtrar_nuevas_fichadas(attendances, ip, ciclo, nombre)
+            nuevas = _filtrar_nuevas_fichadas(attendances, ciclo, nombre)
             if nuevas:
                 filepath = _guardar_fichadas(nuevas, idadm, ip, nombre, usuarios)
                 _log(ciclo, nombre, "Guardando", f"Fichadas guardadas en: {filepath}")
