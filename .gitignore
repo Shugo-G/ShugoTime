@@ -35,6 +35,7 @@ secrets.py
 
 # Fichadas / datos locales
 backend/fichadas/
+data/
 *.txt.bak
 
 # IDE / editores
